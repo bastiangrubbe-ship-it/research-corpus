@@ -1,0 +1,44 @@
+# Project-specific ignores.
+#
+# Machine noise (.DS_Store, __pycache__, .venv, .env) is already covered by the
+# global gitignore at ~/Projects/claude-config/git/gitignore_global. What follows
+# is the belt-and-braces layer: data must never end up in this repo, so anything
+# that looks like data is refused here too.
+
+# --- Data must never live in the repo ---
+data/
+bronze/
+cache/
+volumes/
+
+# --- Databases ---
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+*.duckdb
+*.parquet
+
+# --- Bulk formats that are almost always data ---
+*.csv
+*.tsv
+*.jsonl
+*.arrow
+*.feather
+*.h5
+*.npy
+*.npz
+# Small committed fixtures are the exception — allow them explicitly:
+!tests/fixtures/**
+
+# --- Local overrides ---
+.envrc.local
+.env.local
+
+# --- Secrets: also in the global ignore, repeated so a clone is safe even if
+#     core.excludesfile is not configured on that machine ---
+.env
+.env.*
+!.env.example

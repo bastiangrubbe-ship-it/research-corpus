@@ -1,0 +1,27 @@
+# Volumes bind-mount into $PROJECT_DATA_DIR/volumes so container state is an
+# ordinary directory: visible, backed up with the rest of the data, and portable.
+# direnv sets PROJECT_DATA_DIR from .envrc; Compose reads it from the environment.
+# There is no path literal in this file, which is what makes it work unchanged on
+# a server.
+#
+# Check it resolved:  docker compose config
+
+services:
+  db:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-research-corpus}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-research-corpus}
+    volumes:
+      - ${PROJECT_DATA_DIR:?run direnv allow}/volumes/postgres:/var/lib/postgresql/data
+    ports:
+      # Bound to localhost deliberately. The short "5432:5432" form listens on every
+      # interface and bypasses the host firewall via Docker's own iptables rules.
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-research-corpus}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
