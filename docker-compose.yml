@@ -1,27 +1,55 @@
-# Volumes bind-mount into $PROJECT_DATA_DIR/volumes so container state is an
-# ordinary directory: visible, backed up with the rest of the data, and portable.
-# direnv sets PROJECT_DATA_DIR from .envrc; Compose reads it from the environment.
-# There is no path literal in this file, which is what makes it work unchanged on
-# a server.
+# Postgres state bind-mounts to $PROJECT_DATA_DIR/volumes/postgres — an ordinary
+# directory, visible, backed up with the rest of the data, and portable. There is no
+# path literal in this file, which is what makes it work unchanged on a Linux server.
 #
 # Check it resolved:  docker compose config
 
 services:
   db:
-    image: postgres:17
+    build:
+      context: ./docker/postgres
+    image: research-corpus/postgres:pg17-pgvector
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-research-corpus}
+      POSTGRES_USER: ${POSTGRES_USER:-corpus_migrate}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
-      POSTGRES_DB: ${POSTGRES_DB:-research-corpus}
+      POSTGRES_DB: ${POSTGRES_DB:-corpus}
+      CORPUS_APP_PASSWORD: ${CORPUS_APP_PASSWORD:?set CORPUS_APP_PASSWORD in .env}
+      CORPUS_INGEST_PASSWORD: ${CORPUS_INGEST_PASSWORD:?set CORPUS_INGEST_PASSWORD in .env}
     volumes:
       - ${PROJECT_DATA_DIR:?run direnv allow}/volumes/postgres:/var/lib/postgresql/data
     ports:
       # Bound to localhost deliberately. The short "5432:5432" form listens on every
       # interface and bypasses the host firewall via Docker's own iptables rules.
-      - "127.0.0.1:5432:5432"
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    shm_size: 1gb
+    command:
+      - postgres
+      # Tuned from the environment so the same file works on a 7.7GB Docker VM today
+      # and a 32GB one after the memory allocation is raised.
+      - -c
+      - shared_buffers=${PG_SHARED_BUFFERS:-1GB}
+      - -c
+      - work_mem=${PG_WORK_MEM:-64MB}
+      # HNSW builds are dramatically faster when the graph fits in maintenance_work_mem.
+      # This is the knob that decides whether an index build takes hours or days.
+      - -c
+      - maintenance_work_mem=${PG_MAINTENANCE_WORK_MEM:-2GB}
+      - -c
+      - max_parallel_maintenance_workers=${PG_PARALLEL_MAINTENANCE:-4}
+      - -c
+      - max_parallel_workers_per_gather=${PG_PARALLEL_GATHER:-4}
+      - -c
+      - effective_cache_size=${PG_EFFECTIVE_CACHE_SIZE:-4GB}
+      - -c
+      - random_page_cost=1.1
+      - -c
+      - jit=off
+      - -c
+      - log_min_duration_statement=1000
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-research-corpus}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-corpus_migrate} -d ${POSTGRES_DB:-corpus}"]
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 10
+      start_period: 30s

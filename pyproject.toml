@@ -3,18 +3,28 @@ name = "research-corpus"
 version = "0.1.0"
 description = "Private multi-source research corpus queried by Claude Code as an MCP tool"
 requires-python = ">=3.13"
-dependencies = []
+dependencies = [
+    "sqlalchemy>=2.0",
+    "alembic>=1.14",
+    "psycopg[binary]>=3.2",
+    "pgvector>=0.3.6",
+    "pydantic>=2.10",
+    "pydantic-settings>=2.7",
+    "httpx>=0.28",
+    "structlog>=24.4",
+]
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/research_corpus"]
+packages = ["src/corpus"]
 
 [dependency-groups]
 dev = [
     "pytest>=8",
+    "pytest-asyncio>=0.25",
     "ruff>=0.9",
 ]
 
@@ -25,6 +35,12 @@ src = ["src", "tests"]
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
 
+[tool.ruff.lint.per-file-ignores]
+# Alembic autogenerates these; reformatting them obscures what actually changed.
+"migrations/versions/*" = ["E501"]
+"migrations/env.py" = ["E402"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+markers = ["integration: requires a running Postgres"]

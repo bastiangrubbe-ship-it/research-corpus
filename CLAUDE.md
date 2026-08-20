@@ -1,42 +1,74 @@
 # research-corpus
 
-<!--
-Keep this under 200 lines; shorter is better. It loads into every session for this
-project, so anything not universally applicable dilutes the rest.
-
-Onboarding, not a rulebook. Fill in the four sections below and delete this comment.
-Do not run /init.
--->
-
 ## What this is
 
-<!-- One or two sentences. What does it do, and what does it produce? -->
+A private multi-source research corpus that Claude Code queries as an MCP tool.
+YouTube transcripts first, then RSS, arXiv, and other text. It serves four jobs:
+content sourcing, vendor and market intelligence, client and prospect prep, and
+regulatory tracking.
 
 ## Why it exists
 
-<!-- The problem it solves, and what was being done before. This is the part that
-     stops a future reader from "simplifying" away something load-bearing. -->
+**Its value is comparative and temporal, not factual.** Any single fact is better
+retrieved by web search — do not build toward beating search on lookup. What search
+cannot do is show how a view distributed across a thousand practitioners over three
+years, or who said something before it became consensus.
+
+That premise decides everything else. Effort goes into the metadata and analytics
+layers that make comparison possible, not into passage-retrieval sophistication. The
+system serves three distinct capabilities, and only the first is retrieval:
+
+1. **Retrieval** — find the specific passage. Evidence, provenance, entity lookup.
+2. **Aggregate analytics** — SQL over metadata and counts. No embeddings, no LLM.
+   Term velocity, entity emergence, saturation, sentiment drift. Cheap and the most
+   underserved.
+3. **Filter-then-synthesize** — filter via SQL or lexical search, then reason over
+   *all* of it, map-reduce style. Chunk retrieval is the wrong primitive here: the
+   task needs everything on the topic, not the top ten.
 
 ## How to work on it
 
-Data lives at `$PROJECT_DATA_DIR` (`~/data/research-corpus` on this machine), never
-in this repo. direnv sets it on `cd`; run `direnv allow` once after cloning.
+Data lives at `$PROJECT_DATA_DIR` (`~/data/research-corpus` here), never in this repo.
+direnv sets it on `cd`; run `direnv allow` once after cloning.
 
 ```bash
-uv sync              # install dependencies from uv.lock
-uv run pytest        # run the tests
+docker compose up -d          # Postgres 17 + pgvector 0.8.6
+uv run alembic upgrade head
+uv run pytest                 # integration tests need the database up
 ```
 
-<!-- Add anything non-obvious: how to get credentials, which service to start first,
-     what a full run costs in time or API quota. -->
+Connection roles matter. `corpus_migrate` is a **superuser and bypasses RLS
+unconditionally** — anything asserting tenant isolation must connect as `corpus_app`
+via `APP_DATABASE_URL`, or it passes for the wrong reason.
+
+### Rules that are load-bearing
+
+- **No data in this repo, ever.** Paths come from `$PROJECT_DATA_DIR`, never
+  hardcoded, never relative to the checkout. A hardcoded path is a bug even when it
+  works — it is what would turn the eventual Linux server move into a rewrite.
+- **Bronze is immutable.** Raw API responses are written once and never edited. If a
+  parse was wrong, fix the parser and re-derive. Re-fetching is often impossible:
+  rate limits, expired credentials, deleted upstream records, spent quota.
+- **Never coalesce unknown metadata to a value.** `is_auto_generated IS NULL` means
+  "the provider did not tell us", which is a different claim from "human-authored".
+  The same applies to `published_at_precision` and `attribution_method`. Recording
+  what is unknown is the point, not an oversight to tidy up.
+- **No LLM inference in the ingest path.** At corpus scale a full pass is months of
+  local compute. Summaries at ingest are extractive; abstractive synthesis happens on
+  demand over a filtered set.
+- **RLS is the authorization boundary.** An MCP tool argument or a model's output is
+  never the tenant. The server resolves tenant from its own config.
+
+## Current state
+
+Step 1 of 11 complete: schema, migrations, and RLS, verified against two synthetic
+tenants. Next is the source adapter interface plus the YouTube adapter (step 2).
+The full build order and the reasoning behind it are in `docs/DECISIONS.md`.
 
 ## Reference
 
-<!-- Task-specific instructions live in their own file under docs/ and are listed here
-     with a one-line description, so they are read only when relevant.
+Read when the work calls for them, not by default.
 
-- docs/ingestion.md — how the bronze fetch works and how to re-run it safely
-- docs/schema.md — table layouts and what each column means
--->
-
+- `docs/SUPADATA.md` — the confirmed Supadata API schema and what it does *not* provide
+- `docs/SCHEMA.md` — table-by-table design notes and the RLS mechanics
 - `docs/DECISIONS.md` — what was chosen, what was rejected, and why

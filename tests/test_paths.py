@@ -6,7 +6,7 @@ failure mode the whole ~/Projects and ~/data split exists to prevent.
 
 from pathlib import Path
 
-from research_corpus import paths
+from corpus import paths
 
 
 def test_data_dir_is_outside_the_repo() -> None:
