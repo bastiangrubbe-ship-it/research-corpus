@@ -17,6 +17,26 @@ class SourceKind(StrEnum):
     WEB = "web"
 
 
+class Domain(StrEnum):
+    """What a source is fundamentally about, orthogonal to how authoritative it is.
+
+    A vendor demo and a personal-development channel can both carry the same
+    authority_tier (both 'practitioner', say) while meaning entirely different things
+    for analytics: "mentioned 200 times" is a saturation signal for a tool name and
+    noise for a self-help phrase. Without this column those two counts blend into one
+    meaningless number. Analytics filter by domain by default; cross-domain queries
+    (e.g. "which founder-tier ideas showed up later in adoption content") opt in
+    explicitly rather than happening by accident.
+    """
+
+    AI_RESEARCH = "ai_research"
+    AI_AUTOMATION = "ai_automation"
+    ENTREPRENEURSHIP = "entrepreneurship"
+    PERSONAL_DEVELOPMENT = "personal_development"
+    REGULATORY = "regulatory"
+    UNKNOWN = "unknown"
+
+
 class SourceStatus(StrEnum):
     ACTIVE = "active"
     DEPRECATED = "deprecated"  # hidden from retrieval, rows retained

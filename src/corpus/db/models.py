@@ -97,6 +97,15 @@ class Source(Base, TenantScoped):
         default=enums.AuthorityTier.UNKNOWN,
         server_default="unknown",
     )
+    # Orthogonal to authority_tier: what the source is about, not how much to trust
+    # it. Keeps entrepreneurship/personal-development content from blending into
+    # AI-vendor term-velocity and saturation counts. See enums.Domain.
+    domain: Mapped[enums.Domain] = mapped_column(
+        _enum(enums.Domain, "domain"),
+        default=enums.Domain.UNKNOWN,
+        server_default="unknown",
+        index=True,
+    )
     # Curation: sources must be deprecable and their content purgeable, or quality
     # falls as the corpus grows.
     status: Mapped[enums.SourceStatus] = mapped_column(

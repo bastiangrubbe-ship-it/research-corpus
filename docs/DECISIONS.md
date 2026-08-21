@@ -9,6 +9,60 @@ and dismissed or simply never thought of.
 
 ---
 
+## 2026-08-21 — `domain` as a column separate from `authority_tier`
+
+**Chose:** A `domain` enum on `source` (`ai_research` / `ai_automation` /
+`entrepreneurship` / `personal_development` / `regulatory`), orthogonal to
+`authority_tier`.
+
+**Rejected:** Folding domain into `authority_tier`, or leaving it implicit in which
+seed list a source came from.
+
+**Why:** Once entrepreneurship and personal-development channels were added to the
+corpus (at the user's explicit request — the corpus exists partly to develop their
+own businesses, not only to track the AI industry), a channel like Alex Hormozi's and
+a channel like Databricks' could carry the same authority_tier while meaning entirely
+different things for analytics. "Mentioned 200 times" is a saturation signal for a
+tool name and noise for a self-help phrase; blending them makes both counts
+meaningless. `domain` lets analytics filter to one world by default and opt into
+cross-domain queries (e.g. "which founder-tier ideas later showed up in adoption
+content") explicitly rather than by accident. One column now versus a backfill across
+every ingested row later.
+
+## 2026-08-21 — yt-dlp for discovery and metadata, Supadata for transcript text only
+
+**Chose:** Channel discovery, video metadata, publish dates, and caption provenance
+(`subtitles` vs `automatic_captions`) come from yt-dlp — free, no credits. Supadata is
+used only for the transcript text itself.
+
+**Rejected:** Using Supadata's `/youtube/video` metadata endpoint, as originally
+planned.
+
+**Why:** yt-dlp returns strictly more than Supadata's metadata call — an exact
+`upload_date`/`timestamp` where Supadata's `uploadDate` is optional, full tag and
+chapter data, and critically the `subtitles`/`automatic_captions` split, which is the
+closest thing to transcript provenance either tool provides (Supadata has none at any
+price). It also halves the per-video ingest cost, since the metadata call is no
+longer needed. The tradeoff, raised by the user: yt-dlp throttles under bulk load in a
+way a paid API does not, which is exactly why it is *not* used for the high-volume
+transcript-fetch path — that stays on Supadata.
+
+## 2026-08-21 — Shorts excluded from every seed list, `/videos` tab only
+
+**Chose:** All channel video counts and ingestion targets come from a channel's
+`/videos` tab specifically. Shorts (`/shorts`) are never counted or ingested.
+
+**Rejected:** Using a channel's total video count (which several providers, including
+Supadata's `/youtube/channel` endpoint, report as videos + Shorts combined).
+
+**Why:** Discovered when Supadata reported RoboNuggets at 1,400 videos and yt-dlp's
+`/videos` tab returned 153 — the other 1,247 were Shorts. A 60-second Short carries no
+argument, position, or datable claim worth retrieving, and Shorts share varies wildly
+by channel (89% for RoboNuggets, 0% for Liam Ottley), so it cannot be estimated and
+must be measured per channel. Ingesting by total-video-count would have silently
+spent a large fraction of the credit budget on content that degrades every retrieval
+and analytics capability in the corpus.
+
 ## 2026-08-20 — RLS applied to partitions, not just the partitioned parent
 
 **Chose:** Explicit RLS on every partition of `chunk_embedding`, plus an event trigger

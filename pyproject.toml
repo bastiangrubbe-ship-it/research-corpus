@@ -31,6 +31,7 @@ dev = [
     "respx>=0.23.1",
     "ruff>=0.9",
     "vcrpy>=8.3.0",
+    "yt-dlp>=2026.8.19",
 ]
 
 [tool.ruff]
