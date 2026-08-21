@@ -51,6 +51,12 @@ class Settings(BaseSettings):
             )
         return resolved
 
+    @property
+    def has_supadata_key(self) -> bool:
+        """An unset key arrives as an empty string, not None, and an empty
+        string still produces a well-formed request that returns 401."""
+        return bool(self.supadata_api_key and self.supadata_api_key.get_secret_value().strip())
+
     # --- derived data paths ----------------------------------------------
     @property
     def bronze_dir(self) -> Path:

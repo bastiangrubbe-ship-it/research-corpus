@@ -1,0 +1,84 @@
+{
+  "_recorded": "real response from youtube-transcript-api 1.2.4",
+  "video_id": "dQw4w9WgXcQ",
+  "available": [
+    {
+      "language_code": "en",
+      "language": "English",
+      "is_generated": false,
+      "is_translatable": true
+    },
+    {
+      "language_code": "de-DE",
+      "language": "German (Germany)",
+      "is_generated": false,
+      "is_translatable": true
+    },
+    {
+      "language_code": "ja",
+      "language": "Japanese",
+      "is_generated": false,
+      "is_translatable": true
+    },
+    {
+      "language_code": "pt-BR",
+      "language": "Portuguese (Brazil)",
+      "is_generated": false,
+      "is_translatable": true
+    },
+    {
+      "language_code": "es-419",
+      "language": "Spanish (Latin America)",
+      "is_generated": false,
+      "is_translatable": true
+    },
+    {
+      "language_code": "en",
+      "language": "English (auto-generated)",
+      "is_generated": true,
+      "is_translatable": true
+    }
+  ],
+  "snippets": [
+    {
+      "text": "[♪♪♪]",
+      "start": 1.36,
+      "duration": 1.68
+    },
+    {
+      "text": "♪ We're no strangers to love ♪",
+      "start": 18.64,
+      "duration": 3.24
+    },
+    {
+      "text": "♪ You know the rules\nand so do I ♪",
+      "start": 22.64,
+      "duration": 4.32
+    },
+    {
+      "text": "♪ A full commitment's\nwhat I'm thinking of ♪",
+      "start": 27.04,
+      "duration": 4.0
+    },
+    {
+      "text": "♪ You wouldn't get this\nfrom any other guy ♪",
+      "start": 31.12,
+      "duration": 3.96
+    },
+    {
+      "text": "♪ I just wanna tell you\nhow I'm feeling ♪",
+      "start": 35.16,
+      "duration": 4.36
+    },
+    {
+      "text": "♪ Gotta make you understand ♪",
+      "start": 40.52,
+      "duration": 2.4
+    },
+    {
+      "text": "♪ Never gonna give you up ♪",
+      "start": 43.0,
+      "duration": 2.12
+    }
+  ]
+}
