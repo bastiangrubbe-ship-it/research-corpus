@@ -1,0 +1,7 @@
+{
+  "_case": "wrong_language",
+  "video_id": "dQw4w9WgXcQ",
+  "lang": "xx",
+  "error": "InvalidRequest",
+  "message": "supadata: {\"error\":\"invalid-request\",\"message\":\"Invalid Request\",\"details\":\"Invalid lang (language) parameter. Must be one of supported language codes.\",\"documentationUrl\":\"https://docs.supadata.ai/errors/inval"
+}

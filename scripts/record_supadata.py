@@ -17,6 +17,7 @@ Costs ~5 credits of 30,000.
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import pathlib
 import sys
@@ -77,7 +78,7 @@ def main() -> int:
                     "normalized": {
                         "lang": transcript.lang,
                         "segments": len(transcript.segments),
-                        "first_segment": transcript.segments[0].__dict__
+                        "first_segment": dataclasses.asdict(transcript.segments[0])
                         if transcript.segments
                         else None,
                         "is_auto_generated": transcript.is_auto_generated,

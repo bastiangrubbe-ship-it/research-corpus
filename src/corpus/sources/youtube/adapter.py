@@ -22,6 +22,7 @@ import structlog
 from corpus.db.enums import SourceKind
 from corpus.sources.base import (
     FetchResult,
+    InvalidRequest,
     NormalizedDocument,
     NormalizedTranscript,
     ProviderBlocked,
@@ -114,6 +115,10 @@ class YouTubeAdapter:
                 # No provider will have it. Trying the next one only wastes a credit.
                 log.info("transcript_unavailable", video_id=video_id, provider=name)
                 return None, raws, f"transcript-unavailable: {exc}"
+            except InvalidRequest as exc:
+                # Our request was wrong. The next provider will reject it identically.
+                log.warning("invalid_request", video_id=video_id, provider=name, error=str(exc))
+                return None, raws, f"invalid-request: {exc}"
             except ProviderBlocked as exc:
                 # This provider is refusing us; the next one may not be.
                 log.warning("provider_blocked", video_id=video_id, provider=name, error=str(exc))

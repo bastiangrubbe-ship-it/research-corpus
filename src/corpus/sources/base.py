@@ -164,5 +164,15 @@ class ProviderBlocked(SourceError):
     """
 
 
+class InvalidRequest(SourceError):
+    """The provider rejected the request itself — a bad parameter, not a bad state.
+
+    Distinct from ProviderBlocked because failing over is pointless: the next
+    provider will reject the same malformed request. Distinct from
+    TranscriptUnavailable because the item may well have a transcript; we asked for
+    it wrongly. Observed with Supadata returning HTTP 400 for an unsupported `lang`.
+    """
+
+
 class CreditBudgetExceeded(SourceError):
     """Refused before spending: the call would exceed the configured credit budget."""

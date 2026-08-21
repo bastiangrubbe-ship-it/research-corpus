@@ -1,0 +1,35 @@
+{
+  "_case": "no_captions_whisper",
+  "video_id": "aqz-KE-bpKQ",
+  "lang": "en",
+  "http_status": 200,
+  "payload": {
+    "lang": "en",
+    "availableLangs": [
+      "en"
+    ],
+    "content": [
+      {
+        "text": "Thank you.",
+        "offset": 181896,
+        "duration": 1000
+      }
+    ],
+    "_content_truncated_from": 1
+  },
+  "headers": {
+    "content-type": "application/json"
+  },
+  "normalized": {
+    "lang": "en",
+    "segments": 1,
+    "first_segment": {
+      "idx": 0,
+      "text": "Thank you.",
+      "offset_ms": 181896,
+      "duration_ms": 1000
+    },
+    "is_auto_generated": null,
+    "provenance_confidence": "unknown"
+  }
+}

@@ -26,6 +26,7 @@ from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_ex
 from corpus.db.enums import DatePrecision, ProvenanceConfidence, TranscriptProvider
 from corpus.sources.base import (
     CreditBudgetExceeded,
+    InvalidRequest,
     NormalizedDocument,
     NormalizedSegment,
     NormalizedTranscript,
@@ -133,6 +134,12 @@ class SupadataClient:
         code = response.status_code
         if code in (200, 202):
             return
+        if code == 400:
+            # Observed: an unsupported `lang` returns 400 with
+            # {"error":"invalid-request"}. Treating this as a provider block
+            # would trigger a pointless failover to a provider that will reject
+            # the identical request.
+            raise InvalidRequest(f"supadata: {response.text[:200]}")
         if code == 401:
             raise ProviderBlocked("supadata: missing or invalid API key (401)")
         if code == 402:

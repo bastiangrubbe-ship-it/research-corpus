@@ -1,0 +1,64 @@
+{
+  "_case": "captions_present",
+  "video_id": "dQw4w9WgXcQ",
+  "lang": "en",
+  "http_status": 200,
+  "payload": {
+    "lang": "en",
+    "availableLangs": [
+      "en",
+      "de",
+      "ja",
+      "pt",
+      "es"
+    ],
+    "content": [
+      {
+        "lang": "en",
+        "text": "[♪♪♪]",
+        "offset": 1360,
+        "duration": 1680
+      },
+      {
+        "lang": "en",
+        "text": "♪ We're no strangers to love ♪",
+        "offset": 18640,
+        "duration": 3240
+      },
+      {
+        "lang": "en",
+        "text": "♪ You know the rules\nand so do I ♪",
+        "offset": 22640,
+        "duration": 4320
+      },
+      {
+        "lang": "en",
+        "text": "♪ A full commitment's\nwhat I'm thinking of ♪",
+        "offset": 27040,
+        "duration": 4000
+      },
+      {
+        "lang": "en",
+        "text": "♪ You wouldn't get this\nfrom any other guy ♪",
+        "offset": 31120,
+        "duration": 3960
+      }
+    ],
+    "_content_truncated_from": 61
+  },
+  "headers": {
+    "content-type": "application/json"
+  },
+  "normalized": {
+    "lang": "en",
+    "segments": 61,
+    "first_segment": {
+      "idx": 0,
+      "text": "[♪♪♪]",
+      "offset_ms": 1360,
+      "duration_ms": 1680
+    },
+    "is_auto_generated": null,
+    "provenance_confidence": "unknown"
+  }
+}

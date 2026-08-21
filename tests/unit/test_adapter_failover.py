@@ -14,6 +14,7 @@ import pytest
 
 from corpus.db.enums import ProvenanceConfidence, TranscriptProvider
 from corpus.sources.base import (
+    InvalidRequest,
     NormalizedDocument,
     NormalizedSegment,
     NormalizedTranscript,
@@ -149,3 +150,20 @@ def test_unknown_provider_name_is_rejected_loudly() -> None:
     adapter = YouTubeAdapter(ytapi=None, supadata=None, provider_order=("nonsense",))
     with pytest.raises(ValueError, match="unknown provider"):
         adapter.fetch("vid1")
+
+
+def test_invalid_request_does_not_fail_over() -> None:
+    """Observed against the live API: an unsupported `lang` returns HTTP 400.
+
+    Failing over would send the identical malformed request to a second provider,
+    which rejects it identically — wasting a credit and obscuring the real cause.
+    """
+    yt = FakeTranscriptClient(TranscriptProvider.YTAPI, raises=InvalidRequest("bad lang"))
+    sd = FakeSupadata()
+    adapter = YouTubeAdapter(ytapi=yt, supadata=sd, provider_order=("ytapi", "supadata"))
+
+    result = adapter.fetch("vid1", lang="xx")
+
+    assert result.transcript is None
+    assert result.error_code is not None and "invalid-request" in result.error_code
+    assert sd.calls == 0, "a malformed request must not trigger failover"
