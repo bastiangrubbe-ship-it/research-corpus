@@ -40,8 +40,9 @@ def get_seeds() -> list[dict[str, Any]]:
 
 @app.get("/api/credits")
 def get_credits() -> dict[str, Any]:
-    """remaining_estimate is our own figure against the configured budget, never
-    a number confirmed by Supadata — it has no endpoint that reports usage back.
+    """No "remaining" figure, deliberately — see corpus.ops.credit_usage. It could
+    only ever be budget minus what we logged, which silently goes wrong the
+    moment any credit is spent outside this tool, with no way to detect it.
     """
     settings = get_settings()
     tenant_id = resolve_tenant_id(settings)
@@ -58,7 +59,6 @@ def get_credits() -> dict[str, Any]:
         "used_this_month": summary.used_this_month,
         "used_last_30_days": summary.used_last_30_days,
         "avg_per_day_last_30_days": round(summary.avg_per_day_last_30_days, 2),
-        "remaining_estimate": summary.remaining_estimate,
         "has_data": summary.has_data,
     }
 

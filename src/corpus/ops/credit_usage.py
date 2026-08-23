@@ -3,8 +3,14 @@
 Supadata reports no credit consumption back to the caller — there is no endpoint
 and no header confirming spend (see docs/SUPADATA.md). `credit_usage_event` is
 therefore the only source of truth this system has, built from what we ourselves
-recorded spending. "Credits remaining" below is our own estimate against the
-configured monthly budget, not a number verified against Supadata's own dashboard.
+recorded spending.
+
+Deliberately does not report a "credits remaining" figure. That number can only
+ever be `budget - what we logged`, which is true only if every credit Supadata
+has ever charged went through this tool — one manual API test, one other
+integration, or spend from before this table existed, and the number is simply
+wrong with no way to detect it. `used_*` below are different in kind: they are
+exactly what we recorded spending, true regardless of what happened elsewhere.
 """
 
 from __future__ import annotations
@@ -27,7 +33,6 @@ class CreditUsageSummary:
     used_this_month: int
     used_last_30_days: int
     avg_per_day_last_30_days: float
-    remaining_estimate: int
     #: True once at least one event has ever been recorded. False means the log
     #: is empty — either nothing has been spent yet, or spend happened before
     #: this tracking existed and was never backfilled (see docs/DECISIONS.md).
@@ -90,6 +95,5 @@ def summarize(
         # quiet week should pull the average down, which is what "how much am I
         # burning per day, lately" actually needs to answer for budget planning.
         avg_per_day_last_30_days=used_last_30_days / 30,
-        remaining_estimate=max(0, budget - used_this_month),
         has_data=has_data,
     )

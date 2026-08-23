@@ -3,10 +3,10 @@
 
     uv run python scripts/credit_usage.py
 
-"credits remaining" here is our own estimate against the configured monthly
-budget (SUPADATA_MONTHLY_CREDITS) — Supadata itself reports no consumption back
-to the caller, so this number can drift from what their dashboard shows if any
-spend ever happens outside this tool. See docs/SUPADATA.md.
+No "credits remaining" figure — that would only be `budget - what we logged`,
+which is true only if every credit Supadata has ever charged went through this
+tool. The numbers below are different in kind: exactly what this tool recorded
+spending, true regardless of what happened elsewhere. See docs/SUPADATA.md.
 """
 
 from __future__ import annotations
@@ -39,10 +39,6 @@ def main() -> int:
     print(f"  used this calendar month: {summary.used_this_month}")
     print(f"  used, last 30 days:      {summary.used_last_30_days}")
     print(f"  average per day (30d):   {summary.avg_per_day_last_30_days:.1f}")
-    print(f"  remaining (estimate):    {summary.remaining_estimate}")
-    print()
-    print("Estimate only — Supadata reports no usage back to the caller;")
-    print("this reflects only what this tool has itself recorded spending.")
     return 0
 
 

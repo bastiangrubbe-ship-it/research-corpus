@@ -125,7 +125,6 @@ export interface CreditSummary {
   used_this_month: number;
   used_last_30_days: number;
   avg_per_day_last_30_days: number;
-  remaining_estimate: number;
   has_data: boolean;
 }
 

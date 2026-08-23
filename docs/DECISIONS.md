@@ -9,6 +9,24 @@ and dismissed or simply never thought of.
 
 ---
 
+## 2026-08-23 — No "credits remaining" figure, on request
+
+**Chose:** Report only `used_today` / `used_this_month` / `used_last_30_days` /
+`avg_per_day_last_30_days` — all four provable facts about what this tool has
+itself recorded spending.
+
+**Rejected:** `remaining_estimate = budget - used_this_month`, built and shipped
+earlier the same day.
+
+**Why:** Flagged directly: it would be wrong most of the time. It can only ever
+be correct if every credit Supadata has ever charged went through this tool —
+one manual API test, one other integration touching the same key, or spend
+predating this table's existence, and the number is silently false with no way
+to detect it. The `used_*` figures don't have that failure mode: they are
+exactly what got logged, true regardless of anything happening elsewhere.
+Removed from the summary dataclass, the CLI, the API response, and the
+dashboard panel, rather than left computed-but-hidden in only some of them.
+
 ## 2026-08-23 — Credit usage is a persisted event log, not a bigger in-memory counter
 
 **Chose:** `credit_usage_event` — one row per spend, with `endpoint` and

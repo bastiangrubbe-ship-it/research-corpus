@@ -196,16 +196,12 @@ export default function App() {
                 label="avg / day (30d)"
                 tone="neutral"
               />
-              <StatTile
-                value={credits.remaining_estimate}
-                label={`remaining est. / ${credits.budget}`}
-                tone={credits.remaining_estimate < credits.budget * 0.1 ? "stop" : "go"}
-              />
+              <StatTile value={credits.budget} label="budget / month" tone="neutral" />
             </div>
             <p className={styles.hint}>
-              "Remaining" is our own estimate against the configured monthly budget — Supadata
-              reports no usage back to the caller, so this can drift from what their dashboard shows
-              if credits are ever spent outside this tool.
+              No "remaining" figure — that would only be budget minus what we've logged, which goes
+              silently wrong the moment any credit is spent outside this tool. These numbers are
+              exactly what this tool has recorded spending, true regardless of that.
             </p>
           </>
         ) : (
