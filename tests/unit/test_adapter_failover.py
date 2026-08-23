@@ -56,16 +56,25 @@ class FakeTranscriptClient:
         return _transcript(self.provider), raw
 
 
-class FakeSupadata(FakeTranscriptClient):
-    def __init__(self, raises: Exception | None = None) -> None:
-        super().__init__(TranscriptProvider.SUPADATA, raises)
+class FakeMetadataClient:
+    """Stands in for YtDlpMetadataClient so unit tests never shell out to yt-dlp."""
+
+    def __init__(self, title: str = "t") -> None:
+        self.title = title
+        self.discover_calls = 0
+        self.fetch_calls = 0
+
+    def discover_channel_videos(self, handle: str, *, limit: int | None = None):
+        self.discover_calls += 1
+        return ["vid1"]
 
     def fetch_metadata(self, video_id: str):
+        self.fetch_calls += 1
         return (
-            NormalizedDocument(external_id=video_id, title="t"),
+            NormalizedDocument(external_id=video_id, title=self.title),
             RawResponse(
-                provider="supadata",
-                endpoint="/youtube/video",
+                provider="yt-dlp",
+                endpoint="metadata",
                 external_id=video_id,
                 fetched_at=dt.datetime.now(dt.UTC),
                 payload={},
@@ -73,11 +82,18 @@ class FakeSupadata(FakeTranscriptClient):
         )
 
 
+class FakeSupadata(FakeTranscriptClient):
+    def __init__(self, raises: Exception | None = None) -> None:
+        super().__init__(TranscriptProvider.SUPADATA, raises)
+
+
 def test_ytapi_is_preferred_and_supadata_is_not_called() -> None:
     """The local ordering. ytapi first because it is the only source of provenance."""
     yt = FakeTranscriptClient(TranscriptProvider.YTAPI)
     sd = FakeSupadata()
-    adapter = YouTubeAdapter(ytapi=yt, supadata=sd, provider_order=("ytapi", "supadata"))
+    adapter = YouTubeAdapter(
+        metadata=FakeMetadataClient(), ytapi=yt, supadata=sd, provider_order=("ytapi", "supadata")
+    )
 
     result = adapter.fetch("vid1")
 
@@ -92,7 +108,9 @@ def test_blocked_provider_falls_through_to_the_next() -> None:
     """What happens on the Linux server: YouTube blocks the IP, Supadata takes over."""
     yt = FakeTranscriptClient(TranscriptProvider.YTAPI, raises=ProviderBlocked("ip blocked"))
     sd = FakeSupadata()
-    adapter = YouTubeAdapter(ytapi=yt, supadata=sd, provider_order=("ytapi", "supadata"))
+    adapter = YouTubeAdapter(
+        metadata=FakeMetadataClient(), ytapi=yt, supadata=sd, provider_order=("ytapi", "supadata")
+    )
 
     result = adapter.fetch("vid1")
 
@@ -109,7 +127,9 @@ def test_unavailable_transcript_does_not_burn_a_second_provider() -> None:
     """A video with no captions has none for anybody. Failing over wastes a credit."""
     yt = FakeTranscriptClient(TranscriptProvider.YTAPI, raises=TranscriptUnavailable("none"))
     sd = FakeSupadata()
-    adapter = YouTubeAdapter(ytapi=yt, supadata=sd, provider_order=("ytapi", "supadata"))
+    adapter = YouTubeAdapter(
+        metadata=FakeMetadataClient(), ytapi=yt, supadata=sd, provider_order=("ytapi", "supadata")
+    )
 
     result = adapter.fetch("vid1")
 
@@ -123,7 +143,9 @@ def test_document_survives_when_every_provider_fails() -> None:
     entity analytics, and the transcript can be retried later."""
     yt = FakeTranscriptClient(TranscriptProvider.YTAPI, raises=ProviderBlocked("blocked"))
     sd = FakeSupadata(raises=ProviderBlocked("quota"))
-    adapter = YouTubeAdapter(ytapi=yt, supadata=sd, provider_order=("ytapi", "supadata"))
+    adapter = YouTubeAdapter(
+        metadata=FakeMetadataClient(), ytapi=yt, supadata=sd, provider_order=("ytapi", "supadata")
+    )
 
     result = adapter.fetch("vid1")
 
@@ -137,7 +159,9 @@ def test_server_ordering_puts_supadata_first() -> None:
     """The migration case: order is configuration, not a code change."""
     yt = FakeTranscriptClient(TranscriptProvider.YTAPI)
     sd = FakeSupadata()
-    adapter = YouTubeAdapter(ytapi=yt, supadata=sd, provider_order=("supadata", "ytapi"))
+    adapter = YouTubeAdapter(
+        metadata=FakeMetadataClient(), ytapi=yt, supadata=sd, provider_order=("supadata", "ytapi")
+    )
 
     result = adapter.fetch("vid1")
 
@@ -147,7 +171,9 @@ def test_server_ordering_puts_supadata_first() -> None:
 
 
 def test_unknown_provider_name_is_rejected_loudly() -> None:
-    adapter = YouTubeAdapter(ytapi=None, supadata=None, provider_order=("nonsense",))
+    adapter = YouTubeAdapter(
+        metadata=FakeMetadataClient(), ytapi=None, supadata=None, provider_order=("nonsense",)
+    )
     with pytest.raises(ValueError, match="unknown provider"):
         adapter.fetch("vid1")
 
@@ -160,7 +186,9 @@ def test_invalid_request_does_not_fail_over() -> None:
     """
     yt = FakeTranscriptClient(TranscriptProvider.YTAPI, raises=InvalidRequest("bad lang"))
     sd = FakeSupadata()
-    adapter = YouTubeAdapter(ytapi=yt, supadata=sd, provider_order=("ytapi", "supadata"))
+    adapter = YouTubeAdapter(
+        metadata=FakeMetadataClient(), ytapi=yt, supadata=sd, provider_order=("ytapi", "supadata")
+    )
 
     result = adapter.fetch("vid1", lang="xx")
 

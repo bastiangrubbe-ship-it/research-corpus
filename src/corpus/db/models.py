@@ -366,7 +366,16 @@ class EntityMention(Base, TenantScoped):
 # operations
 # ---------------------------------------------------------------------------
 class IngestState(Base, TenantScoped):
+    """Last-checked-at bookkeeping for a source, read by the heartbeat and ops
+    tooling. Not the dedup mechanism — that rides on document's own unique
+    constraint, which cannot drift out of sync with what was actually persisted
+    the way a hand-maintained cursor could.
+    """
+
     __tablename__ = "ingest_state"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "source_id", name="uq_ingest_state_tenant_source"),
+    )
 
     id: Mapped[uuid.UUID] = _pk()
     source_id: Mapped[uuid.UUID] = mapped_column(

@@ -1,15 +1,18 @@
 """YouTube source adapter.
 
-Implements `SourceAdapter`. Two transcript providers, tried in an order that is a
-deployment property rather than a preference:
+Implements `SourceAdapter`. Discovery and metadata are separate concerns from
+transcript text, and use different providers for it:
 
-* **On this laptop** youtube-transcript-api goes first, because it is the only source
-  of `is_generated` and a residential IP is not blocked.
-* **On the Linux server** it will be blocked, and Supadata becomes the only thing that
-  works. The order inverts by configuration, not by a code change.
-
-Metadata always comes from Supadata: youtube-transcript-api returns transcripts only,
-and the YouTube Data API has quota costs this project will not pay.
+* **Discovery and metadata** come from yt-dlp (`ytdlp_meta.py`) — free, no credits.
+  It returns strictly more than Supadata's metadata endpoint did (an exact upload
+  timestamp, tags, and the subtitles/automatic_captions split) and costs nothing.
+  See docs/DECISIONS.md.
+* **Transcript text** comes from two providers, tried in an order that is a
+  deployment property rather than a preference: youtube-transcript-api first on
+  this laptop, because it is the only source of `is_generated` and a residential IP
+  is not blocked; Supadata first on the eventual Linux server, where YouTube blocks
+  cloud IPs and ytapi fails. The order inverts by configuration, not by a code
+  change.
 """
 
 from __future__ import annotations
@@ -32,6 +35,7 @@ from corpus.sources.base import (
 )
 from corpus.sources.youtube.supadata import SupadataClient
 from corpus.sources.youtube.ytapi import YtApiTranscriptClient
+from corpus.sources.youtube.ytdlp_meta import YtDlpMetadataClient
 
 log = structlog.get_logger(__name__)
 
@@ -42,10 +46,12 @@ class YouTubeAdapter:
     def __init__(
         self,
         *,
+        metadata: YtDlpMetadataClient | None = None,
         supadata: SupadataClient | None = None,
         ytapi: YtApiTranscriptClient | None = None,
         provider_order: Sequence[str] = ("ytapi", "supadata"),
     ) -> None:
+        self._metadata = metadata or YtDlpMetadataClient()
         self._supadata = supadata
         self._ytapi = ytapi
         self._order = tuple(provider_order)
@@ -60,28 +66,26 @@ class YouTubeAdapter:
         limit: int | None = None,
         since: dt.datetime | None = None,
     ) -> Iterable[str]:
-        """Video ids for a channel or playlist.
+        """Video ids from a channel's /videos tab. Free, via yt-dlp.
 
-        `since` is advisory — Supadata's channel listing has no date filter, so the
-        ingestion cursor does the real incremental work (step 3).
+        `since` is advisory — yt-dlp's channel listing has no date filter, so the
+        real incremental work is `document`'s own unique constraint (step 3): a
+        video already ingested is simply skipped rather than re-fetched.
         """
-        if self._supadata is None:
-            raise SourceError("discovery requires a Supadata client")
-        return self._supadata.list_channel_videos(source_ref, limit=limit)
+        return self._metadata.discover_channel_videos(source_ref, limit=limit)
 
     # -- fetch -------------------------------------------------------------
     def fetch(self, external_id: str, *, lang: str = "en") -> FetchResult:
         raws: list[RawResponse] = []
         document = NormalizedDocument(external_id=external_id)
 
-        if self._supadata is not None:
-            try:
-                document, meta_raw = self._supadata.fetch_metadata(external_id)
-                raws.append(meta_raw)
-            except SourceError as exc:
-                # Metadata failure is not fatal: a transcript with a thin document row
-                # is still worth having, and the date can be backfilled later.
-                log.warning("metadata_failed", video_id=external_id, error=str(exc))
+        try:
+            document, meta_raw = self._metadata.fetch_metadata(external_id)
+            raws.append(meta_raw)
+        except SourceError as exc:
+            # Metadata failure is not fatal: a transcript with a thin document row
+            # is still worth having, and the date can be backfilled later.
+            log.warning("metadata_failed", video_id=external_id, error=str(exc))
 
         transcript, transcript_raws, error_code = self._fetch_transcript(external_id, lang=lang)
         raws.extend(transcript_raws)

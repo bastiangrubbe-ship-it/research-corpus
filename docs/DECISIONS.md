@@ -9,6 +9,40 @@ and dismissed or simply never thought of.
 
 ---
 
+## 2026-08-23 — dlt rejected; ingestion is hand-rolled against the existing schema
+
+**Chose:** A plain `ingest_source()` function using the adapter contract, the bronze
+store, and `document`'s own unique constraint for dedup.
+
+**Rejected:** `dlt` (data load tool), named in the original build plan for "DLT
+incremental fetch with state cursors."
+
+**Why:** Inspecting the installed package (`dlt.pipeline.run(resource,
+destination=...)`) confirmed it is designed to own a destination's schema and
+normalization — directly in tension with a schema already owned by Alembic, with RLS
+forced on every table. Its `Incremental` cursor primitive stores state separately
+from `ingest_state`, which already exists for exactly that job. Using dlt only for its
+extract stage while discarding the reason it exists (destination/schema/load
+management) would add a real dependency surface for one feature already covered:
+dedup rides on `document`'s unique constraint, which cannot drift out of sync with
+what was actually persisted the way a hand-maintained cursor could.
+
+## 2026-08-23 — .gitignore's data patterns were unanchored, silently excluding a source module
+
+**Chose:** `/data/`, `/bronze/`, `/cache/`, `/volumes/` — anchored to the repo root.
+
+**Rejected:** The unanchored `bronze/` (no leading slash), inherited from the scaffold
+template.
+
+**Why:** An unanchored gitignore pattern matches at any depth. It was written to catch
+an accidental `./bronze/` mirror at the repo root, but it also matched
+`src/corpus/bronze/` — the actual bronze-store *module* — which meant `store.py` was
+never tracked despite `git add -A` reporting nothing wrong, all the way through the
+step-2 commits. Found only because a fresh `git status` after writing the ingestion
+pipeline showed the file simply absent. Fixed in this repo and in
+`~/Projects/claude-config/templates/project/dot-gitignore` so no project scaffolded
+from it repeats the mistake.
+
 ## 2026-08-21 — `domain` as a column separate from `authority_tier`
 
 **Chose:** A `domain` enum on `source` (`ai_research` / `ai_automation` /

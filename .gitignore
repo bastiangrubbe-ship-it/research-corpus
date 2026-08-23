@@ -6,10 +6,10 @@
 # that looks like data is refused here too.
 
 # --- Data must never live in the repo ---
-data/
-bronze/
-cache/
-volumes/
+/data/
+/bronze/
+/cache/
+/volumes/
 
 # --- Databases ---
 *.db
