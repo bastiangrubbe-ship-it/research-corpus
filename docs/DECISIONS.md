@@ -9,6 +9,52 @@ and dismissed or simply never thought of.
 
 ---
 
+## 2026-08-23 — Folder-watch is server-side; a browser cannot continuously watch a path
+
+**Chose:** The dashboard's "select a folder to monitor" control is a text path
+input; the actual watching (`watchdog`) runs in the Python backend.
+
+**Rejected:** A browser directory-picker that watches continuously.
+
+**Why:** A plain `<input type=file webkitdirectory>` reads a directory's contents
+once, at selection time — it cannot maintain an ongoing watch. The File System
+Access API (`showDirectoryPicker()`) is Chrome/Edge-only, requires the tab to stay
+open with a granted permission, and still only supports polling a handle
+periodically, not push notification of changes. True continuous folder-watching
+is an operating-system-level capability a webpage does not have; it has to live in
+the server process that's actually running.
+
+## 2026-08-23 — Seed-table writes append one entry's YAML, never re-dump the whole file
+
+**Chose:** `_append_row()` serializes a one-item list and appends those lines to
+the file, touching nothing before them.
+
+**Rejected:** Loading the full seed list, appending in memory, and re-writing the
+entire file via `yaml.safe_dump` — the first implementation, caught in testing
+before it shipped.
+
+**Why:** `yaml.safe_dump` on the full 155-row list reformats every existing row's
+quoting and blank-line spacing, turning a single manual-add into a
+1,000+-line diff. Verified directly: the full-rewrite version diffed the entire
+file for a two-row change; the append-only version diffs exactly the 8 lines
+added. The whole point of this file being git-tracked is that a reviewer can see
+what changed — a formatter-driven diff the size of the file defeats that.
+
+## 2026-08-23 — Ingestion emits typed progress events; CLI and web share one loop
+
+**Chose:** `ingest_source()` takes an `on_event: EventSink` callback, emitting an
+`IngestEvent` at each step (discovering, discovered, fetching, fetched, skipped,
+failed, budget_exceeded, done). The CLI passes a sink that prints; the web
+dashboard passes one that pushes onto an SSE queue.
+
+**Rejected:** Building the dashboard's live-progress view by having the web layer
+re-implement the discover/fetch/persist loop with its own instrumentation.
+
+**Why:** Two copies of "what ingesting a channel means" will drift — a fix or a
+new event kind in one won't reach the other. One loop, two sinks, is the same
+shape as the source-adapter split between transcript providers: swap what
+consumes the events, never duplicate what produces them.
+
 ## 2026-08-23 — dlt rejected; ingestion is hand-rolled against the existing schema
 
 **Chose:** A plain `ingest_source()` function using the adapter contract, the bronze

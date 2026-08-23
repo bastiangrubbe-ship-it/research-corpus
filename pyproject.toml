@@ -14,6 +14,10 @@ dependencies = [
     "structlog>=24.4",
     "youtube-transcript-api>=1.2.4",
     "tenacity>=9.1.4",
+    "fastapi>=0.141.1",
+    "uvicorn[standard]>=0.52.4",
+    "sse-starlette>=3.4.8",
+    "watchdog>=6.0.0",
 ]
 
 [build-system]

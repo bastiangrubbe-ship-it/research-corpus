@@ -22,7 +22,9 @@ from __future__ import annotations
 
 import datetime as dt
 import uuid
-from dataclasses import dataclass
+from collections.abc import Callable
+from dataclasses import dataclass, field
+from typing import Literal
 
 import structlog
 from sqlalchemy import select
@@ -35,6 +37,40 @@ from corpus.db.models import Document, IngestState, Segment, Source, TranscriptV
 from corpus.sources.base import CreditBudgetExceeded, FetchResult, SourceAdapter, SourceError
 
 log = structlog.get_logger(__name__)
+
+IngestEventKind = Literal[
+    "discovering",
+    "discovered",
+    "fetching",
+    "fetched",
+    "skipped",
+    "failed",
+    "budget_exceeded",
+    "done",
+]
+
+
+@dataclass(frozen=True, slots=True)
+class IngestEvent:
+    """One step of progress. The CLI prints these; the web dashboard's SSE
+    endpoint forwards them as-is (they're already dataclasses, trivially
+    serializable) so both consumers read from the exact same emission point
+    rather than two copies of the ingestion loop drifting apart.
+    """
+
+    kind: IngestEventKind
+    source_handle: str
+    detail: str = ""
+    current: int = 0
+    total: int = 0
+    extra: dict = field(default_factory=dict)
+
+
+EventSink = Callable[[IngestEvent], None]
+
+
+def noop_sink(_event: IngestEvent) -> None:
+    return None
 
 
 @dataclass(frozen=True, slots=True)
@@ -54,15 +90,23 @@ def ingest_source(
     adapter: SourceAdapter,
     bronze: BronzeStore,
     limit: int | None = None,
+    on_event: EventSink = noop_sink,
 ) -> IngestSummary:
     """Ingest one source. Safe to call twice: the second call discovers the same
     videos, finds every one already has a `document` row, and fetches nothing.
     Safe to interrupt: each video is committed independently, so a kill mid-run
     leaves already-processed videos persisted and unprocessed ones simply unstarted
     — never a half-written document.
+
+    `on_event` is the only thing a caller needs to supply to get live progress —
+    the CLI passes one that prints, the web dashboard passes one that pushes onto
+    an SSE queue. Neither re-implements the loop below.
     """
-    external_ids = list(adapter.discover(source.external_id, limit=limit))
-    log.info("discovered", source=source.external_id, count=len(external_ids))
+    handle = source.external_id
+    on_event(IngestEvent(kind="discovering", source_handle=handle))
+    external_ids = list(adapter.discover(handle, limit=limit))
+    log.info("discovered", source=handle, count=len(external_ids))
+    on_event(IngestEvent(kind="discovered", source_handle=handle, total=len(external_ids)))
 
     existing = set(
         session.execute(
@@ -80,30 +124,79 @@ def ingest_source(
     failed = 0
     errors: list[str] = []
 
-    for external_id in external_ids:
+    for i, external_id in enumerate(external_ids, start=1):
         if external_id in existing:
+            on_event(
+                IngestEvent(
+                    kind="skipped",
+                    source_handle=handle,
+                    detail=external_id,
+                    current=i,
+                    total=len(external_ids),
+                )
+            )
             continue
+
+        on_event(
+            IngestEvent(
+                kind="fetching",
+                source_handle=handle,
+                detail=external_id,
+                current=i,
+                total=len(external_ids),
+            )
+        )
         try:
             result = adapter.fetch(external_id)
         except CreditBudgetExceeded:
             # Not a per-video failure: the budget is exhausted for this run.
             # Stop cleanly rather than let every remaining video fail one at a time.
-            log.warning("credit_budget_exceeded", source=source.external_id, remaining=external_ids)
+            log.warning("credit_budget_exceeded", source=handle, remaining=external_ids)
+            on_event(IngestEvent(kind="budget_exceeded", source_handle=handle))
             break
         except SourceError as exc:
             failed += 1
             errors.append(f"{external_id}: {exc}")
-            log.warning(
-                "fetch_failed", source=source.external_id, video=external_id, error=str(exc)
+            log.warning("fetch_failed", source=handle, video=external_id, error=str(exc))
+            on_event(
+                IngestEvent(
+                    kind="failed",
+                    source_handle=handle,
+                    detail=f"{external_id}: {exc}",
+                    current=i,
+                    total=len(external_ids),
+                )
             )
             continue
 
         _persist(session, source=source, external_id=external_id, result=result, bronze=bronze)
         session.commit()
         fetched += 1
+        on_event(
+            IngestEvent(
+                kind="fetched",
+                source_handle=handle,
+                detail=external_id,
+                current=i,
+                total=len(external_ids),
+                extra={
+                    "provider": result.transcript.provider.value if result.transcript else None,
+                    "has_transcript": result.transcript is not None,
+                },
+            )
+        )
 
     _touch_ingest_state(session, source)
     session.commit()
+
+    on_event(
+        IngestEvent(
+            kind="done",
+            source_handle=handle,
+            total=len(external_ids),
+            extra={"fetched": fetched, "failed": failed, "already_ingested": len(existing)},
+        )
+    )
 
     return IngestSummary(
         source_id=source.id,
