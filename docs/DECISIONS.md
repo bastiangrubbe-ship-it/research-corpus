@@ -9,6 +9,49 @@ and dismissed or simply never thought of.
 
 ---
 
+## 2026-08-23 — Entity extraction is Claude Code (headless), not GLiNER/gazetteer
+
+**Chose:** One `claude -p` call per document, model pinned to `haiku`, authenticated
+via `CLAUDE_CODE_OAUTH_TOKEN` (a subscription login from `claude setup-token`) rather
+than a metered `ANTHROPIC_API_KEY`. Claude judges what's a real entity, its canonical
+name, kind, and the surface forms it's actually called in that transcript; a
+deterministic regex pass over the transcript text then finds every exact-offset span
+for `entity_mention` — the LLM is never asked to compute character offsets itself.
+
+**Rejected:**
+1. GLiNER / a gazetteer pass, the original plan (see the plan doc's step 4). Set
+   aside on the strength of prior, direct experience running this same Claude Code
+   pattern in another project and observing better quality on jargon-heavy,
+   ASR-derived transcript text than either alternative produced there.
+2. The Anthropic Python SDK (`client.messages.parse()`), built first and then
+   replaced. It's the more naturally-structured option — server-side JSON-schema
+   validation via `output_config.format`, no manual parsing — but it authenticates
+   with a metered API key, not the subscription login this project's Claude usage
+   actually runs under. Kept the module's split between LLM-for-judgment and
+   code-for-spans, since that part of the design doesn't depend on which surface
+   calls the model.
+
+**Why running it at all doesn't reintroduce the "no LLM in the ingest path" rule
+this project otherwise holds:** that rule was written against a *per-chunk* operation
+at the corpus's 14M-chunk ceiling — contextual embeddings, corpus-wide abstractive
+summarization. Entity extraction runs once per *document*. At this corpus's actual
+near-term scale (tens of thousands of documents, bounded by the Supadata credit
+budget, not the chunk ceiling), that's a tractable number of calls, and a subscription
+login means it isn't metered per token besides.
+
+**Consequence:** headless mode has no equivalent to the SDK's schema-validated
+output, so the prompt asks for bare JSON and `corpus.enrich.entities.extract_entities`
+parses and validates it itself (`ExtractionError` on a bad shape, not retried — that's
+a prompt problem, not a transient one). `--allowedTools ""` is passed explicitly on
+every call: transcript text is external, untrusted content, so tool-use capability is
+removed from the call rather than assumed unreachable.
+
+Runs as `flows/nightly_entities.py`, chained after `flows/ingest_youtube.py` in
+`scripts/nightly.sh`, scheduled via the (not-yet-installed) launchd job in
+`launchd/` — see `launchd/README.md`. Reprocessing on a prompt or model change is
+automatic: `entity_mention.extractor_version` gates the "already done" query, so
+bumping `PROMPT_VERSION` in `entities.py` naturally re-queues every document.
+
 ## 2026-08-23 — No "credits remaining" figure, on request
 
 **Chose:** Report only `used_today` / `used_this_month` / `used_last_30_days` /

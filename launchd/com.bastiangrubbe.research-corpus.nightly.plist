@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.bastiangrubbe.research-corpus.nightly</string>
+
+    <!-- Kept thin on purpose: all logic lives in scripts/nightly.sh, so the
+         Linux migration only has to become a systemd timer that runs the same
+         script, per docs/DECISIONS.md. -->
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>/Users/bastiangrubbe/Projects/research-corpus/scripts/nightly.sh</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/bastiangrubbe/Projects/research-corpus</string>
+
+    <!-- launchd's own PATH is minimal (/usr/bin:/bin:/usr/sbin:/sbin) and does not
+         go through your shell profile, so `uv` and `claude` must resolve without
+         it. Fill in `claude`'s real path below — `command -v claude` in your
+         normal shell — since it wasn't discoverable from an unattended check. -->
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/Users/bastiangrubbe/.local/bin:/usr/bin:/bin:/usr/sbin:/sbin:PUT_CLAUDE_CLI_DIRECTORY_HERE</string>
+    </dict>
+
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>3</integer>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
+
+    <!-- Disposable — reconstructable by rerunning, not part of bronze/volumes. -->
+    <key>StandardOutPath</key>
+    <string>/Users/bastiangrubbe/data/research-corpus/cache/logs/nightly.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/bastiangrubbe/data/research-corpus/cache/logs/nightly.log</string>
+</dict>
+</plist>

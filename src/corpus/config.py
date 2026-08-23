@@ -37,6 +37,14 @@ class Settings(BaseSettings):
     supadata_monthly_credits: int = Field(30_000, alias="SUPADATA_MONTHLY_CREDITS")
     supadata_requests_per_second: float = Field(2.0, alias="SUPADATA_RPS")
 
+    # --- entity extraction (Claude Code, headless) -------------------------
+    # No key here: extraction shells out to the `claude` CLI (see corpus.enrich.
+    # entities), authenticated via CLAUDE_CODE_OAUTH_TOKEN — a subscription login,
+    # not a metered API key — which the CLI itself reads from the environment.
+    # "haiku" is the Claude Code CLI's model alias, not an Anthropic API model ID.
+    entity_extraction_model: str = Field("haiku", alias="ENTITY_EXTRACTION_MODEL")
+    entity_extraction_timeout_s: float = Field(120.0, alias="ENTITY_EXTRACTION_TIMEOUT_S")
+
     @field_validator("project_data_dir")
     @classmethod
     def _must_be_absolute_and_outside_repo(cls, v: Path) -> Path:

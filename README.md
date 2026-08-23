@@ -33,9 +33,19 @@ On this machine that is `~/data/research-corpus`. Elsewhere it is wherever
 
 ```bash
 uv run pytest
+
+# Ingest configured YouTube seeds
+uv run python flows/ingest_youtube.py [--phase research-p1] [--limit 5] [--dry-run]
+
+# Extract entities for anything not yet processed at the current prompt version
+uv run python flows/nightly_entities.py [--limit 50] [--dry-run]
+
+# Local dashboard: uv run python scripts/run_web.py, then cd web/ && pnpm dev
 ```
 
-<!-- Replace with the actual entry points. -->
+Both flows are meant to run daily, chained, via `scripts/nightly.sh` — see
+[launchd/README.md](launchd/README.md) for scheduling it (macOS launchd; a systemd
+timer on the eventual Linux migration, same script either way).
 
 ## Decisions
 
