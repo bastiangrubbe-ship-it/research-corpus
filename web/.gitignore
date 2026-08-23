@@ -1,0 +1,5 @@
+# Anchored to this directory, not the repo root — see the top-level project's
+# docs/DECISIONS.md for why an unanchored pattern here is a real hazard.
+/node_modules/
+/dist/
+.vite/

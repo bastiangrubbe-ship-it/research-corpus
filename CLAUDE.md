@@ -61,9 +61,13 @@ via `APP_DATABASE_URL`, or it passes for the wrong reason.
 
 ## Current state
 
-Step 1 of 11 complete: schema, migrations, and RLS, verified against two synthetic
-tenants. Next is the source adapter interface plus the YouTube adapter (step 2).
-The full build order and the reasoning behind it are in `docs/DECISIONS.md`.
+Steps 1-3 of 11 complete: schema + RLS, the YouTube source adapter, and ingestion
+(hand-rolled, not dlt — see `docs/DECISIONS.md`). 155 channels verified into
+`seeds/youtube_channels.yaml`. A local dashboard (`web/`, backed by
+`src/corpus/web/`) gives live ingestion progress, manual channel add, and
+folder-watch — see `web/README.md`. Next is metadata/entity extraction (step 4).
+The full build order and the reasoning behind every deviation from it are in
+`docs/DECISIONS.md`.
 
 ## Reference
 

@@ -1,0 +1,131 @@
+.page {
+  font-family: var(--uik-font-sans);
+  background: var(--uik-ground);
+  color: var(--uik-ink);
+  min-height: 100vh;
+  padding: 32px 40px 80px;
+  max-width: 960px;
+  margin: 0 auto;
+}
+
+.title {
+  font-size: 1.6rem;
+  font-weight: 600;
+  margin: 0 0 28px;
+}
+
+.panel {
+  background: var(--uik-panel);
+  border: 1px solid var(--uik-rule);
+  border-radius: 6px;
+  padding: 20px 24px;
+  margin-bottom: 20px;
+}
+
+.panelTitle {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0 0 12px;
+}
+
+.hint {
+  font-size: 13px;
+  color: var(--uik-muted);
+  margin: 0 0 12px;
+  line-height: 1.5;
+}
+
+.row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.input {
+  flex: 1;
+  padding: 8px 10px;
+  border: 1px solid var(--uik-rule);
+  border-radius: 4px;
+  background: var(--uik-panel-2);
+  color: var(--uik-ink);
+  font-family: var(--uik-font-mono);
+  font-size: 13px;
+}
+
+.inputSmall {
+  composes: input;
+  flex: none;
+  width: 70px;
+}
+
+.button {
+  padding: 8px 16px;
+  border: 1px solid var(--uik-accent);
+  border-radius: 4px;
+  background: var(--uik-accent-soft);
+  color: var(--uik-accent);
+  font-family: var(--uik-font-sans);
+  font-weight: 500;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.button:hover {
+  filter: brightness(0.95);
+}
+
+.runPanel {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.statRow {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 10px;
+}
+
+.watchedPath {
+  font-family: var(--uik-font-mono);
+  font-size: 13px;
+  color: var(--uik-ink-2);
+  flex: 1;
+}
+
+.error {
+  color: var(--uik-stop);
+  font-size: 13px;
+}
+
+.tableWrap {
+  overflow-x: auto;
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.table th {
+  text-align: left;
+  font-family: var(--uik-font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--uik-muted);
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--uik-rule);
+  position: sticky;
+  top: 0;
+  background: var(--uik-panel);
+}
+
+.table td {
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--uik-rule-2);
+}

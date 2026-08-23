@@ -9,6 +9,18 @@ and dismissed or simply never thought of.
 
 ---
 
+## 2026-08-23 — Dashboard frontend lives in web/, its own npm-tooled subtree
+
+**Chose:** A `web/` directory inside this repo, its own `package.json`/pnpm
+lockfile, consuming `@bastiangrubbe/ui-kit` as a git dependency.
+
+**Rejected:** A separate repo for the dashboard frontend.
+
+**Why:** Unlike `ui-kit`, this frontend has exactly one reason to exist — it is
+this project's operational dashboard, not something another project will ever
+depend on. `ui-kit` earned its own repo because it's meant to be reused;
+`web/` doesn't meet that bar, so it stays where the thing it operates on lives.
+
 ## 2026-08-23 — Folder-watch is server-side; a browser cannot continuously watch a path
 
 **Chose:** The dashboard's "select a folder to monitor" control is a text path
