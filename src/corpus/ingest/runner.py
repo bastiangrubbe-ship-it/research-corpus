@@ -87,8 +87,27 @@ def get_or_create_source(session: Session, tenant_id: uuid.UUID, seed: dict) -> 
     return source
 
 
-def build_adapter() -> tuple[YouTubeAdapter, SupadataClient]:
+def build_adapter(tenant_id: uuid.UUID) -> tuple[YouTubeAdapter, SupadataClient]:
+    """`on_spend` persists every credit spend the moment it happens, via its own
+    short-lived session — decoupled from whatever ingestion transaction is in
+    flight, because the credit was genuinely spent regardless of what happens to
+    that transaction afterward. Without this, `credit_usage_event` never gets
+    written and "credits used" resets to zero on every process restart, since
+    Supadata itself reports no consumption back to the caller.
+    """
     from corpus.config import get_settings
+    from corpus.ops.credit_usage import record_spend
+
+    def on_spend(credits: int, endpoint: str, external_id: str | None) -> None:
+        with tenant_session(tenant_id) as log_session:
+            record_spend(
+                log_session,
+                tenant_id=tenant_id,
+                provider="supadata",
+                endpoint=endpoint,
+                external_id=external_id,
+                credits=credits,
+            )
 
     settings = get_settings()
     supadata = SupadataClient(
@@ -96,6 +115,7 @@ def build_adapter() -> tuple[YouTubeAdapter, SupadataClient]:
         base_url=settings.supadata_base_url,
         requests_per_second=settings.supadata_requests_per_second,
         monthly_credits=settings.supadata_monthly_credits,
+        on_spend=on_spend,
     )
     adapter = YouTubeAdapter(
         ytapi=YtApiTranscriptClient(), supadata=supadata, provider_order=("ytapi", "supadata")
@@ -121,8 +141,8 @@ def run_ingestion(
 
     settings = get_settings()
     bronze = BronzeStore(settings.bronze_dir)
-    adapter, supadata = build_adapter()
     tenant_id = resolve_tenant_id(settings)
+    adapter, supadata = build_adapter(tenant_id)
 
     summaries: list[IngestSummary] = []
     try:

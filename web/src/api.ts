@@ -118,3 +118,19 @@ export async function configureWatch(path: string): Promise<{ watched_path: stri
 export async function stopWatch(): Promise<void> {
   await fetch(`${API_BASE}/api/watch`, { method: "DELETE" });
 }
+
+export interface CreditSummary {
+  budget: number;
+  used_today: number;
+  used_this_month: number;
+  used_last_30_days: number;
+  avg_per_day_last_30_days: number;
+  remaining_estimate: number;
+  has_data: boolean;
+}
+
+export async function fetchCredits(): Promise<CreditSummary> {
+  const res = await fetch(`${API_BASE}/api/credits`);
+  if (!res.ok) throw new Error(`GET /api/credits failed: ${res.status}`);
+  return res.json();
+}

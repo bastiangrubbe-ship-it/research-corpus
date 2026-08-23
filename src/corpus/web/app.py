@@ -14,6 +14,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 
+from corpus.config import get_settings
+from corpus.db.session import tenant_session
+from corpus.ingest.runner import resolve_tenant_id
+from corpus.ops.credit_usage import summarize
 from corpus.web.runs import manager
 from corpus.web.seeds import SeedInputError, append_seed, load_all_seeds, resolve_input
 from corpus.web.watch import watcher
@@ -32,6 +36,31 @@ app.add_middleware(
 @app.get("/api/seeds")
 def get_seeds() -> list[dict[str, Any]]:
     return load_all_seeds()
+
+
+@app.get("/api/credits")
+def get_credits() -> dict[str, Any]:
+    """remaining_estimate is our own figure against the configured budget, never
+    a number confirmed by Supadata — it has no endpoint that reports usage back.
+    """
+    settings = get_settings()
+    tenant_id = resolve_tenant_id(settings)
+    with tenant_session(tenant_id) as session:
+        summary = summarize(
+            session,
+            tenant_id=tenant_id,
+            provider="supadata",
+            budget=settings.supadata_monthly_credits,
+        )
+    return {
+        "budget": summary.budget,
+        "used_today": summary.used_today,
+        "used_this_month": summary.used_this_month,
+        "used_last_30_days": summary.used_last_30_days,
+        "avg_per_day_last_30_days": round(summary.avg_per_day_last_30_days, 2),
+        "remaining_estimate": summary.remaining_estimate,
+        "has_data": summary.has_data,
+    }
 
 
 class StartRunRequest(BaseModel):

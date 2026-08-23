@@ -2,9 +2,11 @@ import { ProgressBar, StatTile } from "@bastiangrubbe/ui-kit";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
+  type CreditSummary,
   type IngestEventPayload,
   type SeedRow,
   configureWatch,
+  fetchCredits,
   fetchSeeds,
   fetchWatchStatus,
   manualAdd,
@@ -74,6 +76,7 @@ export default function App() {
   const [manualStatus, setManualStatus] = useState<string | null>(null);
   const [watchPath, setWatchPath] = useState("");
   const [watchedPath, setWatchedPath] = useState<string | null>(null);
+  const [credits, setCredits] = useState<CreditSummary | null>(null);
   const closeStreamRef = useRef<(() => void) | null>(null);
 
   const reloadSeeds = useCallback(() => {
@@ -82,15 +85,24 @@ export default function App() {
       .catch((err: Error) => setSeedsError(err.message));
   }, []);
 
+  const reloadCredits = useCallback(() => {
+    fetchCredits()
+      .then(setCredits)
+      .catch(() => {
+        /* backend not up yet — the seeds panel already surfaces that error */
+      });
+  }, []);
+
   useEffect(() => {
     reloadSeeds();
+    reloadCredits();
     fetchWatchStatus()
       .then((s) => setWatchedPath(s.watched_path))
       .catch(() => {
         /* backend not up yet — the seeds panel already surfaces that error */
       });
     return () => closeStreamRef.current?.();
-  }, [reloadSeeds]);
+  }, [reloadSeeds, reloadCredits]);
 
   const handleStartRun = async () => {
     if (!handle.trim()) return;
@@ -117,7 +129,10 @@ export default function App() {
       closeStreamRef.current = streamRun(
         run_id,
         (event) => setRun((prev) => (prev ? reduceEvent(prev, event) : prev)),
-        () => reloadSeeds()
+        () => {
+          reloadSeeds();
+          reloadCredits();
+        }
       );
     } catch (err) {
       setRun({
@@ -168,6 +183,37 @@ export default function App() {
   return (
     <div className={styles.page}>
       <h1 className={styles.title}>research-corpus — ingestion dashboard</h1>
+
+      <section className={styles.panel}>
+        <h2 className={styles.panelTitle}>Supadata credits</h2>
+        {credits?.has_data ? (
+          <>
+            <div className={styles.statRow}>
+              <StatTile value={credits.used_today} label="used today" tone="neutral" />
+              <StatTile value={credits.used_this_month} label="used this month" tone="neutral" />
+              <StatTile
+                value={credits.avg_per_day_last_30_days.toFixed(1)}
+                label="avg / day (30d)"
+                tone="neutral"
+              />
+              <StatTile
+                value={credits.remaining_estimate}
+                label={`remaining est. / ${credits.budget}`}
+                tone={credits.remaining_estimate < credits.budget * 0.1 ? "stop" : "go"}
+              />
+            </div>
+            <p className={styles.hint}>
+              "Remaining" is our own estimate against the configured monthly budget — Supadata
+              reports no usage back to the caller, so this can drift from what their dashboard shows
+              if credits are ever spent outside this tool.
+            </p>
+          </>
+        ) : (
+          <p className={styles.hint}>
+            No credit spend recorded yet. Budget configured: {credits?.budget ?? "…"}/month.
+          </p>
+        )}
+      </section>
 
       <section className={styles.panel}>
         <h2 className={styles.panelTitle}>Run a channel</h2>

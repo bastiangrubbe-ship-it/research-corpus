@@ -18,6 +18,7 @@ from __future__ import annotations
 import datetime as dt
 import threading
 import time
+from collections.abc import Callable
 from typing import Any
 
 import httpx
@@ -62,26 +63,41 @@ class RateLimiter:
             self._last = time.monotonic()
 
 
+#: (credits, endpoint, external_id) -> None. Called only after a reservation
+#: succeeds — never for a call that raised CreditBudgetExceeded, since no credit
+#: was actually spent in that case.
+OnSpend = Callable[[int, str, str | None], None]
+
+
 class CreditLedger:
     """Tracks spend against the configured budget and refuses to exceed it.
 
     Deliberately a preflight check. Discovering the limit by receiving a 429 wastes
     the request that hits it and gives no way to reason about a large backfill before
     starting one.
+
+    `budget`/`spent` here are in-memory and reset on every process restart — they
+    are not the durable record. `on_spend`, when supplied, is how a caller persists
+    each spend event; without it, "credits used" and "credits remaining" cannot
+    outlive this one process, because Supadata itself reports no consumption back
+    to the caller (see docs/SUPADATA.md).
     """
 
-    def __init__(self, budget: int) -> None:
+    def __init__(self, budget: int, *, on_spend: OnSpend | None = None) -> None:
         self.budget = budget
         self.spent = 0
+        self._on_spend = on_spend
         self._lock = threading.Lock()
 
-    def reserve(self, credits: int) -> None:
+    def reserve(self, credits: int, *, endpoint: str, external_id: str | None = None) -> None:
         with self._lock:
             if self.spent + credits > self.budget:
                 raise CreditBudgetExceeded(
                     f"would spend {credits} credits; {self.remaining} of {self.budget} remain"
                 )
             self.spent += credits
+        if self._on_spend is not None:
+            self._on_spend(credits, endpoint, external_id)
 
     @property
     def remaining(self) -> int:
@@ -97,10 +113,11 @@ class SupadataClient:
         requests_per_second: float = 2.0,
         monthly_credits: int = 30_000,
         client: httpx.Client | None = None,
+        on_spend: OnSpend | None = None,
     ) -> None:
         self._base_url = base_url.rstrip("/")
         self._limiter = RateLimiter(requests_per_second)
-        self.ledger = CreditLedger(monthly_credits)
+        self.ledger = CreditLedger(monthly_credits, on_spend=on_spend)
         self._client = client or httpx.Client(
             base_url=self._base_url,
             headers={"x-api-key": api_key},
@@ -157,7 +174,7 @@ class SupadataClient:
     def fetch_transcript(
         self, video_id: str, *, lang: str = "en"
     ) -> tuple[NormalizedTranscript, RawResponse]:
-        self.ledger.reserve(1)
+        self.ledger.reserve(1, endpoint="/youtube/transcript", external_id=video_id)
         params = {"videoId": video_id, "lang": lang, "text": "false"}
         response = self._get("/youtube/transcript", params)
         payload = response.json()
@@ -200,7 +217,7 @@ class SupadataClient:
 
     def list_channel_videos(self, channel_ref: str, *, limit: int | None = None) -> list[str]:
         """Video ids for a channel. Costs 1 credit regardless of how many come back."""
-        self.ledger.reserve(1)
+        self.ledger.reserve(1, endpoint="/youtube/channel/videos", external_id=channel_ref)
         params: dict[str, Any] = {"id": channel_ref}
         if limit is not None:
             params["limit"] = min(limit, 5000)  # documented ceiling
@@ -210,7 +227,7 @@ class SupadataClient:
         return [v if isinstance(v, str) else v.get("id") for v in ids]
 
     def fetch_metadata(self, video_id: str) -> tuple[NormalizedDocument, RawResponse]:
-        self.ledger.reserve(1)
+        self.ledger.reserve(1, endpoint="/youtube/video", external_id=video_id)
         params = {"id": video_id}
         response = self._get("/youtube/video", params)
         payload = response.json()

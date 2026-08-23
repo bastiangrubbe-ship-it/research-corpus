@@ -365,6 +365,30 @@ class EntityMention(Base, TenantScoped):
 # ---------------------------------------------------------------------------
 # operations
 # ---------------------------------------------------------------------------
+class CreditUsageEvent(Base, TenantScoped):
+    """One provider credit spend, logged at the moment it happens.
+
+    Supadata has no endpoint that reports credit consumption back to the caller
+    (confirmed against the live API — no `x-billable-requests` header, nothing in
+    any response body). This table is the only durable record that exists; without
+    it, "credits used" and "credits remaining" reset to zero every time a process
+    restarts, because `CreditLedger` is in-memory only. `endpoint` and `external_id`
+    are kept specifically so a spend spike can be traced to what caused it, not just
+    counted.
+    """
+
+    __tablename__ = "credit_usage_event"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    provider: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    endpoint: Mapped[str] = mapped_column(String(64), nullable=False)
+    external_id: Mapped[str | None] = mapped_column(String(255))
+    credits: Mapped[int] = mapped_column(Integer, nullable=False)
+    occurred_at: Mapped[dt.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False, index=True
+    )
+
+
 class IngestState(Base, TenantScoped):
     """Last-checked-at bookkeeping for a source, read by the heartbeat and ops
     tooling. Not the dedup mechanism — that rides on document's own unique

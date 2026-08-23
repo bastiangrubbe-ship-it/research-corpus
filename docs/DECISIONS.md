@@ -9,6 +9,26 @@ and dismissed or simply never thought of.
 
 ---
 
+## 2026-08-23 — Credit usage is a persisted event log, not a bigger in-memory counter
+
+**Chose:** `credit_usage_event` — one row per spend, with `endpoint` and
+`external_id` kept alongside the count, written the moment `CreditLedger.reserve()`
+succeeds via an `on_spend` callback (same pattern as `IngestEvent`/`EventSink`).
+
+**Rejected:** A single running-total row per day, incremented in place.
+
+**Why:** Supadata has no endpoint or header reporting credit consumption back to
+the caller — confirmed against the live API in step 2. `CreditLedger` is
+in-memory and resets to zero every process restart, so without persistence
+"credits used" and "credits left" simply didn't exist between runs. An event log
+costs nothing extra at this volume and, unlike a rolling counter, can answer
+"which channel caused today's spike" after the fact, not just "how much."
+
+"Credits remaining" is reported everywhere as an estimate against the configured
+budget, never as a number confirmed by Supadata — because it categorically
+cannot be confirmed by them. Every surface (CLI, API, dashboard) says so
+explicitly rather than presenting a guess as a fact.
+
 ## 2026-08-23 — Dashboard frontend lives in web/, its own npm-tooled subtree
 
 **Chose:** A `web/` directory inside this repo, its own `package.json`/pnpm
