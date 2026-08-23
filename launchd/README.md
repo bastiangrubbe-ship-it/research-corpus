@@ -8,10 +8,13 @@ usage on its own, so that's a deliberate step you take, not something done for y
 
 ## Before installing
 
-1. Fill in the real `claude` CLI directory in the plist's `PATH` — it wasn't
-   discoverable from this session. Find it with `command -v claude` in your normal
-   shell and use its directory (not the file path itself).
-2. Generate a long-lived token and add it to `.env`:
+1. Install the CLI: `npm install -g @anthropic-ai/claude-code` (the plist's `PATH`
+   already points at `/opt/homebrew/bin`, where npm links it on this machine).
+2. **Log in.** A fresh install is unauthenticated — `claude -p` fails with
+   `Not logged in · Please run /login` until this is done, and it has to happen
+   in your own terminal (an OAuth consent flow tied to your account, not
+   something that can run unattended). Then generate the long-lived token the
+   launchd job actually uses and add it to `.env`:
    ```bash
    claude setup-token
    ```
@@ -22,7 +25,7 @@ usage on its own, so that's a deliberate step you take, not something done for y
    This is a subscription login, not a metered API key — see
    [docs/DECISIONS.md](../docs/DECISIONS.md).
 3. `mkdir -p ~/data/research-corpus/cache/logs` (the plist's log paths must exist —
-   launchd does not create intermediate directories).
+   launchd does not create intermediate directories; already done on this machine).
 
 ## Install
 

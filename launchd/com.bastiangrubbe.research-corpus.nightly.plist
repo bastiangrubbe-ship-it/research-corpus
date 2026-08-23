@@ -20,12 +20,12 @@
 
     <!-- launchd's own PATH is minimal (/usr/bin:/bin:/usr/sbin:/sbin) and does not
          go through your shell profile, so `uv` and `claude` must resolve without
-         it. Fill in `claude`'s real path below — `command -v claude` in your
-         normal shell — since it wasn't discoverable from an unattended check. -->
+         it. claude installed via `npm install -g @anthropic-ai/claude-code`,
+         which npm links into /opt/homebrew/bin on this machine. -->
     <key>EnvironmentVariables</key>
     <dict>
         <key>PATH</key>
-        <string>/Users/bastiangrubbe/.local/bin:/usr/bin:/bin:/usr/sbin:/sbin:PUT_CLAUDE_CLI_DIRECTORY_HERE</string>
+        <string>/Users/bastiangrubbe/.local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
     </dict>
 
     <key>StartCalendarInterval</key>
