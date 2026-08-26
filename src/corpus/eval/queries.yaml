@@ -1,0 +1,112 @@
+# Eval query set for the retrieval harness (build plan step 7).
+#
+# HONEST GAP: THE TEN SPEC QUERIES ARE MISSING, and nothing below substitutes for them.
+#
+# docs/BUILD_PLAN.md calls the ten (3 lexical, 3 semantic, 2 thematic, 2 temporal)
+# "the specification" and states the project's go/no-go gate in terms of them: the
+# corpus must beat a web-search baseline on >=6 of 10 including >=2 of Q7-Q10, or stop
+# and reconsider. Their original wording isn't in this codebase or its docs — only two
+# fragments quoted inside the plan survive (Q5: "governance as competitive advantage,
+# not compliance cost"; Q8: "which vendors are discussed more now than six months ago").
+#
+# Rather than invent wording and present it as the real spec, this file is seeded with
+# the 3 queries this project's own eval work (docs/EVAL_RELEVANCE_GATE.md) has real,
+# transcript-grounded ground truth for, plus paraphrases. That makes the set useful for
+# comparing retrieval lanes against each other, and useless for answering "is this
+# corpus worth having" — the question the gate exists to force. Do not read a good
+# score here as having passed Step 0.
+#
+# To unblock Step 0: add the ten below with `spec_query: true`, then capture the
+# web-search baseline per BUILD_PLAN.md Step 0 *before* looking at any corpus result
+# for them — the baseline is worthless once you've seen what the corpus returns.
+#
+#   - id: q1
+#     text: "..."
+#     category: lexical      # Q1-Q3 lexical, Q4-Q6 semantic, Q7-Q8 thematic, Q9-Q10 temporal
+#     spec_query: true       # marks it as one of the ten, not a substitute
+#
+# category: lexical | semantic | thematic | temporal — the plan's own distribution,
+# kept here so report.py can break results down by category once more queries land.
+
+queries:
+  - id: q_marketing_seo
+    text: "marketing, SEO, and advertising tools"
+    category: thematic
+    notes: >
+      Real ground truth in docs/EVAL_RELEVANCE_GATE.md (2026-08-24/25 entries),
+      re-verified against the fixed reranker. Precision@10 known: 0.20 cosine-only,
+      0.60 reranked (post-fix).
+
+  - id: q_coding_agents
+    text: "AI coding agents and developer tools"
+    category: thematic
+    notes: >
+      Real ground truth in docs/EVAL_RELEVANCE_GATE.md. Precision@10 known: 0.50
+      cosine-only, ~0.70-0.80 reranked (post-fix, one candidate title-judged only).
+
+  - id: q_robots_hardware
+    text: "humanoid robots hardware"
+    category: semantic
+    notes: >
+      The deliberate null-result query — docs/EVAL_RELEVANCE_GATE.md's evidence that
+      the backlog has no genuine match for this topic. Precision@10 known: 0.00 both
+      cosine-only and reranked, confirmed twice (pre- and post- reranker fix). Kept
+      in the eval set specifically because a harness that can't represent "there is
+      nothing here" is missing half of what docs/DECISIONS.md's `min_score` gate
+      exists to handle.
+
+  # --- Paraphrases (2026-08-25) — per the plan's own recommendation: "3-4 genuine
+  # paraphrases per spec query — different vocabulary, same information need."
+  # Real spec queries aren't available (see the file header), so these paraphrase
+  # the 3 seeded queries above instead. Two of the three marketing paraphrases
+  # deliberately take the two different readings the harness's own judge exposed
+  # (docs/DECISIONS.md, "Step 7 eval harness's first real run") — this is itself a
+  # test of that finding, not just coverage padding.
+
+  - id: q_marketing_seo_p1
+    text: "marketing, SEO, and advertising tactics and case studies"
+    category: thematic
+    paraphrase_of: q_marketing_seo
+    notes: "Disambiguates toward 'content about doing the work' — the looser reading."
+
+  - id: q_marketing_seo_p2
+    text: "software tools for marketing, SEO, and advertising"
+    category: thematic
+    paraphrase_of: q_marketing_seo
+    notes: "Disambiguates toward 'named software products' — the stricter reading the judge took on the original wording."
+
+  - id: q_marketing_seo_p3
+    text: "how creators are using AI for marketing and SEO"
+    category: thematic
+    paraphrase_of: q_marketing_seo
+
+  - id: q_coding_agents_p1
+    text: "coding assistants and AI developer tooling"
+    category: thematic
+    paraphrase_of: q_coding_agents
+
+  - id: q_coding_agents_p2
+    text: "using AI agents to write and ship software"
+    category: thematic
+    paraphrase_of: q_coding_agents
+
+  - id: q_coding_agents_p3
+    text: "Claude Code, Codex, and similar coding agent tools"
+    category: lexical
+    paraphrase_of: q_coding_agents
+    notes: "Deliberately lexical (names specific products) rather than thematic, unlike its parent."
+
+  - id: q_robots_hardware_p1
+    text: "physical robots and their hardware components"
+    category: semantic
+    paraphrase_of: q_robots_hardware
+
+  - id: q_robots_hardware_p2
+    text: "humanoid robot manufacturers and platforms"
+    category: semantic
+    paraphrase_of: q_robots_hardware
+
+  - id: q_robots_hardware_p3
+    text: "embodied AI and robotics hardware"
+    category: semantic
+    paraphrase_of: q_robots_hardware
