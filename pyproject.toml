@@ -18,6 +18,13 @@ dependencies = [
     "uvicorn[standard]>=0.52.4",
     "sse-starlette>=3.4.8",
     "watchdog>=6.0.0",
+    "gliner>=0.2.28",
+    "sentence-transformers>=6.0.0",
+    "einops>=0.8.2",
+    "sumy>=0.13.0",
+    "pyyaml>=6.0.3",
+    "mcp[cli]>=2.1.1",
+    "feedparser>=6.0.14",
 ]
 
 [build-system]
