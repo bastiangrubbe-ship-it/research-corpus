@@ -30,7 +30,6 @@ from __future__ import annotations
 
 import json
 import re
-import subprocess
 import uuid
 from collections.abc import Iterable, Iterator, Sequence
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -46,6 +45,7 @@ from corpus.config import get_settings
 from corpus.db.enums import EntityKind
 from corpus.db.models import Entity, EntityExtractionRun, EntityMention, Segment, TranscriptVersion
 from corpus.db.session import tenant_session
+from corpus.llm.headless import ClaudeCliError, run_claude_headless
 
 log = structlog.get_logger(__name__)
 
@@ -136,39 +136,20 @@ def _strip_markdown_fence(text: str) -> str:
     reraise=True,
 )
 def _run_claude_code(transcript_text: str, *, model: str, timeout_s: float) -> str:
+    """Delegates to corpus.llm.headless, which carries this call's hard-won detail:
+    the CLI reports failures in the stdout envelope rather than on stderr. That was
+    diagnosed here and then found sitting unfixed in corpus.eval.judge, which is why
+    the subprocess call now lives in one module instead of three.
+
+    Transcript text goes over stdin, never interpolated into the prompt — it is
+    untrusted external content.
+    """
     try:
-        proc = subprocess.run(
-            [
-                "claude",
-                "-p",
-                _PROMPT,
-                "--model",
-                model,
-                "--output-format",
-                "json",
-                "--allowedTools",
-                "",
-            ],
-            input=transcript_text,
-            capture_output=True,
-            text=True,
-            timeout=timeout_s,
+        return run_claude_headless(
+            _PROMPT, model=model, timeout_s=timeout_s, stdin_text=transcript_text
         )
-    except subprocess.TimeoutExpired as exc:
-        raise ClaudeCodeCallError(f"claude CLI timed out after {timeout_s}s") from exc
-    except FileNotFoundError as exc:
-        raise ClaudeCodeCallError("claude CLI not found on PATH") from exc
-
-    if proc.returncode != 0:
-        # The CLI reports its own failures in the stdout JSON envelope's `result`
-        # field, not on stderr — a failed call routinely has empty stderr. Reporting
-        # only stderr produced "claude CLI exited 1: " with nothing after the colon,
-        # which is how a context-limit failure went undiagnosed for an entire
-        # session. Prefer stderr when it has content, fall back to stdout.
-        detail = proc.stderr.strip() or proc.stdout.strip()
-        raise ClaudeCodeCallError(f"claude CLI exited {proc.returncode}: {detail[:500]}")
-
-    return proc.stdout
+    except ClaudeCliError as exc:
+        raise ClaudeCodeCallError(str(exc)) from exc
 
 
 #: Above this transcript size, extract with `LARGE_DOCUMENT_MODEL` instead.

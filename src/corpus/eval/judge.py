@@ -15,7 +15,6 @@ label blends in as if it were unquestioned ground truth.
 from __future__ import annotations
 
 import json
-import subprocess
 import uuid
 from dataclasses import asdict, dataclass
 from enum import StrEnum
@@ -24,6 +23,7 @@ from pathlib import Path
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from corpus.eval.pool import PooledCandidate
+from corpus.llm.headless import ClaudeCliError, run_claude_headless
 
 JUDGE_MODEL = "haiku"
 JUDGE_TIMEOUT_S = 600.0
@@ -121,31 +121,16 @@ class JudgeParseError(Exception):
     reraise=True,
 )
 def _run_claude_code(prompt: str, *, model: str, timeout_s: float) -> str:
+    """Delegates to corpus.llm.headless. This used to be its own copy of the
+    subprocess call, and it reported `proc.stderr` only -- so every judge failure
+    surfaced as `claude CLI exited 1:` with nothing after the colon. entities.py had
+    already diagnosed and fixed exactly that, but the fix never crossed over; the
+    shared runner is what stops the two from drifting again.
+    """
     try:
-        proc = subprocess.run(
-            [
-                "claude",
-                "-p",
-                prompt,
-                "--model",
-                model,
-                "--output-format",
-                "json",
-                "--allowedTools",
-                "",
-            ],
-            capture_output=True,
-            text=True,
-            timeout=timeout_s,
-        )
-    except subprocess.TimeoutExpired as exc:
-        raise JudgeCallError(f"claude CLI timed out after {timeout_s}s") from exc
-    except FileNotFoundError as exc:
-        raise JudgeCallError("claude CLI not found on PATH") from exc
-
-    if proc.returncode != 0:
-        raise JudgeCallError(f"claude CLI exited {proc.returncode}: {proc.stderr[:500]}")
-    return proc.stdout
+        return run_claude_headless(prompt, model=model, timeout_s=timeout_s)
+    except ClaudeCliError as exc:
+        raise JudgeCallError(str(exc)) from exc
 
 
 def _strip_fence(text: str) -> str:
