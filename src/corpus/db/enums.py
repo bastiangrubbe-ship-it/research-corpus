@@ -34,6 +34,10 @@ class Domain(StrEnum):
     ENTREPRENEURSHIP = "entrepreneurship"
     PERSONAL_DEVELOPMENT = "personal_development"
     REGULATORY = "regulatory"
+    # Education/documentary/business content that doesn't fit the four analytical
+    # domains above, kept on request rather than dropped as out_of_scope — see
+    # docs/DECISIONS.md, 2026-08-24.
+    GENERAL = "general"
     UNKNOWN = "unknown"
 
 
