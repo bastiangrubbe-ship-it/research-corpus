@@ -70,20 +70,32 @@ channels plus RSS, fully enriched: 292k entity mentions, 3,267 document summarie
   windows). Measured lane precision/recall is in `docs/EVAL_RELEVANCE_GATE.md`.
 - **Analytics** (velocity, emergence, saturation, drift, diffusion) answer Q7/Q8
   with no embeddings and no LLM.
-- **MCP** exposes `corpus_search`, `corpus_analytics`, `corpus_coverage`,
-  `corpus_provenance`. `corpus_synthesize` is the one tool not built — it needs
-  `synthesis/mapreduce.py`.
+- **Synthesis** (`synthesis/mapreduce.py`) reads *every* document matching a SQL/
+  full-text filter and reduces them to cited prose. Unlike the other three, it costs
+  one LLM call per matched document — always `dry_run` first, and note that a capped
+  run reports what it dropped rather than presenting a partial read as complete.
+- **MCP** exposes all five tools: `corpus_search`, `corpus_analytics`,
+  `corpus_coverage`, `corpus_synthesize`, `corpus_provenance`.
 - **The dashboard** (`web/`, backed by `src/corpus/web/`) has 12 panels covering all
   of the above plus the original ingestion controls — see `web/README.md`.
 
-Not done: step 0 (baseline capture), step 6's chunk-level *re-embedding* tooling,
-step 11 (Linux dry run), and `synthesis/`. Speaker attribution and transcript
-restoration both work but have only been run over part of the corpus.
+Not done: step 0 (baseline capture), step 6's chunk-level *re-embedding* tooling, and
+step 11 (Linux dry run). Synthesis has no dashboard panel yet — it is reachable via
+MCP and Python only.
+
+Summaries and chunks were derived from *raw* transcripts and are not re-derived after
+restoration; that is a deliberate deferral, not an oversight, since it means
+re-deriving 3,267 summaries and 70k chunks.
 
 **Two standing cautions, learned the hard way** (both in `docs/DECISIONS.md`):
 a partially-built index does not look broken, it looks decisive — assert index
 completeness before trusting a "nothing found" result; and "confirmed N ways" is
 worth little when every confirmation runs through the same substrate.
+
+The first caution has now cost three separate bugs (a 3.9% index, a mislabelled date
+range, and a near-miss that would have zeroed every chunk timestamp). When a pass
+writes something every later stage reads, check what it wrote before trusting what it
+reports.
 
 The full build order and the reasoning behind every deviation from it are in
 `docs/DECISIONS.md`.

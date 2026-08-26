@@ -9,6 +9,97 @@ and dismissed or simply never thought of.
 
 ---
 
+## 2026-08-26 — Synthesis lands; two bugs found by running the enrichers at full scale
+
+`corpus_synthesize` completes the four capabilities. Also: the full-corpus speaker and
+restoration passes each surfaced a bug that only appears at scale, and one of them
+would have quietly damaged retrieval.
+
+### Filter-then-synthesize is a set, not a ranking
+
+`synthesis/mapreduce.py` filters with SQL/full-text, reads **every** matched document
+in full, and reduces the findings to cited prose.
+
+The filter deliberately does not use vector similarity. Membership needs to be
+explainable and reproducible; "documents above 0.7 cosine" is neither a set anyone can
+check nor one whose near-misses are visible. Ranking is designed to *discard* — it
+returns the best ten and drops the rest silently — and for "how has the argument for X
+changed" the fortieth document counts as much as the first. That is the whole reason
+this capability exists separately from `corpus_search`.
+
+**Cost is the honest part.** One LLM call per matched document, running while someone
+waits: on this corpus `entity_name='Claude Code'` matches 761 documents. So
+`plan_synthesis`/`dry_run` reports the count and the call count before anything is
+spent, and `max_documents` bounds a run — but a bounded run reports `capped` and
+`dropped_by_cap`, and the report always carries `matched_documents` next to
+`documents_read`, not only when they differ. A synthesis that read 60 of 1,055
+documents while sounding complete would be worse than none, because the entire value
+of the capability is the claim that nothing was dropped unread.
+
+Citation markers are **validated, not trusted** — markers in the answer are checked
+against the markers actually issued, and any invention is reported in
+`invalid_markers`. A citation is the part of this output a reader is most likely to
+take on faith and least able to verify. Hierarchical reduce preserves original marker
+numbers across batches rather than renumbering, or the same `[3]` would mean a
+different document in each partial.
+
+Measured end to end (ASML, 12 documents): 8 addressed the question, 4 did not and were
+dropped by the map stage, 18 citations, 0 invalid markers, 58s. The 4 that dropped out
+are the point — they were *read* and then excluded, which is not what a ranker does.
+
+### The `claude -p` call now lives in one module
+
+`corpus/llm/headless.py`. `entities.py` had learned that the CLI reports failures in
+the **stdout** envelope, not stderr, so reporting stderr alone yields `claude CLI
+exited 1:` with nothing after the colon — the failure mode that hid a context-limit
+error for a whole session. That fix never reached `eval/judge.py`, which still had the
+bug verbatim, unnoticed, until synthesis was about to become the third copy.
+
+Rejected: leaving them separate and duplicating the fix a third time. A bug fix that
+has already failed to propagate once is evidence about what will happen again.
+
+### Speaker attribution: one regex flag put prose in the speaker column
+
+Running over all 3,349 documents produced labels like `"would remove by fiat"` and
+`"Ryan Carson from"` — 5 of 84 parsed labels. Cause: `re.IGNORECASE` applied to the
+whole pattern, which also makes `_NAME`'s `[A-Z][a-z]+` match lowercase words,
+removing the one signal separating a name from ordinary prose. Fixed by scoping the
+flag to the literal cue with `(?i:...)`. Separators moved from `\s+` to `[ \t]+` for
+a second instance of the same class of error: `\s` crosses newlines, so an outro line
+followed by a heading looked exactly like "First Last".
+
+54% of documents end at `attribution_method='unknown'`. That is the designed outcome,
+not a shortfall — tier 1 is heuristics over metadata, and "we could not tell" is a
+different claim from a guess.
+
+### Restoration would have silently zeroed every chunk timestamp
+
+`restore_transcript_version` wrote the whole restored document as a **single** segment
+at `offset_ms=0`. Every consumer — chunking, the relevance gate, entity extraction —
+picks a document's *latest* transcript version. So restoring the corpus would have
+made every subsequently-built chunk report `start_ms` near zero, degrading
+`search_with_timestamps` corpus-wide. Nothing would have failed: a timestamp of 0
+reads as a value, not as missing data.
+
+Fixed by realigning restored text back onto the parent's segment boundaries.
+Restoration only adds punctuation and capitalization, never inserting or deleting a
+word, so the word sequence cuts at the same points and each segment keeps its exact
+`offset_ms`/`duration_ms`. Restoring the document as one string first and re-cutting
+afterwards is deliberate — restoring segment by segment would hand the model a few
+seconds of speech at a time with no sentence context across boundaries, which is
+precisely where punctuation is hardest.
+
+On a word-count mismatch it falls back to one segment rather than distributing text
+over offsets it no longer matches. Losing timestamps is recoverable and obvious;
+misattributing them is neither. Over 3,269 versions this fired once.
+
+This is the third instance of the standing caution: **the damage a partial or
+malformed index does is that it still looks decisive.** A zeroed timestamp, a 3.9%
+index, and a period label reading `2026-08-01` for a range starting in March all
+present as answers rather than as faults.
+
+---
+
 ## 2026-08-25 — Dashboard extended to the whole corpus surface; RSS closes step 10
 
 The dashboard went from 5 panels (ingestion only) to **12**, exposing everything
