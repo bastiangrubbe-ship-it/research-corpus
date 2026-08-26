@@ -129,3 +129,136 @@
   padding: 7px 10px;
   border-bottom: 1px solid var(--uik-rule-2);
 }
+
+/* --- shared by panels added after the original ingestion dashboard --------- */
+
+.select {
+  padding: 8px 10px;
+  border: 1px solid var(--uik-rule);
+  border-radius: 4px;
+  background: var(--uik-panel-2);
+  color: var(--uik-ink);
+  font-family: var(--uik-font-sans);
+  font-size: 13px;
+}
+
+.checkLabel {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--uik-ink-2);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.mono {
+  font-family: var(--uik-font-mono);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.muted {
+  color: var(--uik-muted);
+}
+
+.clickableRow {
+  cursor: pointer;
+}
+
+.clickableRow:hover td {
+  background: var(--uik-panel-2);
+}
+
+.detailBox {
+  padding: 12px 4px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.detailGrid {
+  display: grid;
+  grid-template-columns: 130px 1fr;
+  gap: 6px 14px;
+  margin: 0;
+  font-size: 13px;
+}
+
+.detailGrid dt {
+  font-family: var(--uik-font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--uik-muted);
+  padding-top: 2px;
+}
+
+.detailGrid dd {
+  margin: 0;
+  color: var(--uik-ink-2);
+}
+
+.link {
+  color: var(--uik-accent);
+  font-size: 13px;
+  text-decoration: none;
+  width: fit-content;
+}
+
+.link:hover {
+  text-decoration: underline;
+}
+
+.subTitle {
+  font-size: 12px;
+  font-weight: 600;
+  margin: 0 0 8px;
+  color: var(--uik-ink-2);
+}
+
+.suggestionList {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  font-size: 13px;
+  color: var(--uik-ink-2);
+  line-height: 1.5;
+}
+
+.textarea {
+  width: 100%;
+  margin-top: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--uik-rule);
+  border-radius: 4px;
+  background: var(--uik-panel-2);
+  color: var(--uik-ink);
+  font-family: var(--uik-font-mono);
+  font-size: 12px;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+.pre {
+  margin: 12px 0 0;
+  padding: 12px;
+  background: var(--uik-panel-2);
+  border: 1px solid var(--uik-rule-2);
+  border-radius: 4px;
+  font-family: var(--uik-font-mono);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--uik-ink-2);
+  max-height: 320px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}

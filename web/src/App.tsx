@@ -15,6 +15,13 @@ import {
   streamRun,
 } from "./api";
 import styles from "./App.module.css";
+import AnalyticsPanel from "./components/AnalyticsPanel";
+import CoveragePanel from "./components/CoveragePanel";
+import EnrichmentPanel from "./components/EnrichmentPanel";
+import EvalHistoryPanel from "./components/EvalHistoryPanel";
+import McpPanel from "./components/McpPanel";
+import RssPanel from "./components/RssPanel";
+import SearchPanel from "./components/SearchPanel";
 
 interface RunState {
   runId: string;
@@ -182,7 +189,15 @@ export default function App() {
 
   return (
     <div className={styles.page}>
-      <h1 className={styles.title}>research-corpus — ingestion dashboard</h1>
+      <h1 className={styles.title}>research-corpus — dashboard</h1>
+
+      <SearchPanel />
+      <CoveragePanel />
+      <AnalyticsPanel />
+      <EvalHistoryPanel />
+      <McpPanel />
+      <EnrichmentPanel />
+      <RssPanel />
 
       <section className={styles.panel}>
         <h2 className={styles.panelTitle}>Supadata credits</h2>
