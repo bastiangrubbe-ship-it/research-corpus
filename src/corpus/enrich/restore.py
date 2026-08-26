@@ -24,6 +24,7 @@ would silently under-deliver on its own name.
 from __future__ import annotations
 
 import uuid
+from dataclasses import dataclass
 from functools import lru_cache
 
 from sqlalchemy import select
@@ -112,6 +113,56 @@ def restore_punctuation(text: str) -> str:
     return " ".join(restored_chunks)
 
 
+@dataclass(frozen=True, slots=True)
+class _RestoredSegment:
+    idx: int
+    text: str
+    offset_ms: int
+    duration_ms: int
+
+
+def _realign_to_segments(
+    restored_text: str, segment_rows, total_duration_ms: int
+) -> list[_RestoredSegment]:
+    """Spread restored text back over the parent's segment boundaries, keeping each
+    segment's original offset_ms and duration_ms.
+
+    Restoration is punctuation and capitalization only — it never inserts or deletes a
+    word — so the restored word sequence lines up 1:1 with the input and can be cut at
+    the same points. Restoring the document as one string first and re-cutting
+    afterwards is deliberate: restoring segment by segment would give the model a few
+    seconds of speech at a time and no sentence context across a boundary, which is
+    where punctuation decisions are hardest.
+
+    This has to preserve segments because everything downstream picks a document's
+    *latest* transcript version (`DISTINCT ON (document_id) ... created_at DESC` in
+    chunking, the relevance gate, and entity extraction alike). An earlier version
+    wrote the whole restored document as one segment at offset_ms=0; that made every
+    chunk built from a restored version report a start_ms near zero, so
+    `search_with_timestamps` would have degraded corpus-wide the moment restoration
+    ran broadly — quietly, since a timestamp of 0 looks like a value rather than a
+    missing one.
+
+    If the word counts ever fail to line up, fall back to one segment spanning the
+    document rather than distributing text against offsets it does not match: losing
+    timestamps is recoverable and obvious, misattributed timestamps are neither.
+    """
+    restored_words = restored_text.split()
+    original_counts = [len(row.text.split()) for row in segment_rows]
+
+    if sum(original_counts) != len(restored_words):
+        return [_RestoredSegment(0, restored_text, 0, total_duration_ms)]
+
+    out: list[_RestoredSegment] = []
+    cursor = 0
+    for idx, (row, count) in enumerate(zip(segment_rows, original_counts, strict=True)):
+        text = " ".join(restored_words[cursor : cursor + count])
+        cursor += count
+        if text:
+            out.append(_RestoredSegment(idx, text, row.offset_ms, row.duration_ms))
+    return out
+
+
 def restore_transcript_version(
     session: Session, *, tenant_id: uuid.UUID, transcript_version_id: uuid.UUID
 ) -> uuid.UUID | None:
@@ -151,15 +202,16 @@ def restore_transcript_version(
     session.add(new_version)
     session.flush()  # need new_version.id before inserting its segments
 
-    session.add(
-        Segment(
-            tenant_id=tenant_id,
-            transcript_version_id=new_version.id,
-            idx=0,
-            text=restored_text,
-            offset_ms=0,
-            duration_ms=total_duration_ms,
+    for segment in _realign_to_segments(restored_text, segment_rows, total_duration_ms):
+        session.add(
+            Segment(
+                tenant_id=tenant_id,
+                transcript_version_id=new_version.id,
+                idx=segment.idx,
+                text=segment.text,
+                offset_ms=segment.offset_ms,
+                duration_ms=segment.duration_ms,
+            )
         )
-    )
     session.commit()
     return new_version.id
