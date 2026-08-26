@@ -9,6 +9,810 @@ and dismissed or simply never thought of.
 
 ---
 
+## 2026-08-25 — Dashboard extended to the whole corpus surface; RSS closes step 10
+
+The dashboard went from 5 panels (ingestion only) to **12**, exposing everything
+built since: search + provenance, coverage assessment, analytics, eval runs, MCP tool
+catalog, enrichment triggers, and RSS feeds.
+
+**Structure.** New feature areas are `APIRouter` modules under `corpus/web/`; the five
+original routes stay inline in `app.py` rather than being churned for symmetry, so
+each addition is one new file plus one `include_router` line. The frontend split into
+`web/src/components/*.tsx` sharing one `App.module.css` — the panels hold no shared
+state, so splitting cost nothing.
+
+**Two managers duplicated on purpose.** `EnrichmentRunManager` and `RssRunManager`
+each mirror `runs.RunManager` (~60 lines) instead of extending it. `Run` carries
+`credits_spent`/`credits_budget`, which are Supadata concepts meaningless to both,
+and the ingestion manager is the one component the working YouTube flow depends on —
+threading a "kind" branch through it to serve two new callers would risk that for no
+gain.
+
+**What streams and what doesn't** is decided by whether real progress exists:
+`enrich_documents_concurrent` yields per document, so entity extraction streams;
+`attribute_speakers` is one blocking call and restoration acts on a single document,
+so both just return. A progress bar over a single opaque call would be theatre.
+
+### RSS: step 10's finding, confirmed twice
+
+`ingest_source` needed **zero changes** — it is genuinely adapter-agnostic. Everything
+YouTube-specific lived in `runner.py` (`get_or_create_source` hardcoding
+`SourceKind.YOUTUBE_CHANNEL`, `run_ingestion` wiring Supadata and credits), so
+`ingest/rss_runner.py` reimplements only those. The `SourceAdapter` protocol survived
+a structurally different second source, which is exactly what step 10 existed to test.
+
+**Feeds go through `seeds/rss_feeds.yaml`**, not straight to `source` — the convention
+`seeds.py` argues for, now applied to a second source kind. Verified end to end: add
+produced a reviewable YAML diff, ingestion fetched 5 documents with
+`provider=native, is_auto_generated=False, provenance_confidence=known` (genuinely
+higher provenance than any ASR transcript here), and a re-run **fetched 0, skipped 5**
+— idempotent.
+
+**The preview step earned itself immediately.** `feedparser` returns zero entries on a
+dead or typo'd URL rather than raising, unlike `resolve_input`'s `SeedInputError`.
+Without preview, a broken feed would be added and its run would report "0 fetched",
+indistinguishable from a feed with nothing new. Tested against a deliberately invalid
+URL: now a 400 that says so.
+
+**One inaccuracy caught by typecheck, worth recording** because it was in a comment I
+had written confidently: the RSS and YouTube streams are *not* fully identical. The
+per-item events are (same `IngestEvent`), but the terminal `run_complete` envelope
+differs — RSS reports fetched/skipped/failed, YouTube reports credits, because a plain
+feed fetch has no credits to account for. The shared type now says so.
+
+## 2026-08-25 — No truncation in judging; model escalates by size instead. The "permanent limit" wasn't one.
+
+**Chose:** the eval judge reads the **whole transcript** — no character cap at all —
+and picks its model by document size: the configured small model for the 99%+ that
+fit, Opus (1M-token context) above 200,000 characters (25 documents, 0.76%).
+`Judgment.verified_by` records which model judged, so an audit can tell the cheap
+path from the strong one instead of guessing.
+
+**Why no cap, at all:** there were two, 6,000 then 30,000 characters, and both were
+wrong the same way. Against a median transcript of 18,776 characters and a p90 of
+62,974, a cap means judging documents on their opening — so a video that addresses
+the query twenty minutes in is marked irrelevant on evidence that could not have
+shown it. The bias runs one direction only, manufacturing false negatives, which is
+the most likely explanation for the audit pattern in
+`docs/EVAL_RELEVANCE_GATE.md` where every disagreement was `irrelevant → marginal`
+and never the reverse. A ground truth that reads less of a document than the system
+it grades cannot serve as ground truth for that system.
+
+**Rejected:** judging against the best-matching chunks instead of the full text. It
+would be cheap and it would be circular — showing the judge exactly the passages
+retrieval already liked, then asking whether retrieval was right.
+
+### The "permanently un-extractable" document was extracted
+
+`docs/DECISIONS.md` recorded one 1,023,757-character transcript (~256k tokens) as a
+permanent limit, reasoning that building chunked multi-call extraction for a single
+document wasn't proportionate. The reasoning was sound; the conclusion was wrong,
+because chunking was never the only option — **a model with a larger context was**.
+The same escalation now applies to `corpus.enrich.entities`, and the document
+extracted cleanly: **3,135 mentions**, corpus enrichment queue now zero.
+
+Three real bugs surfaced getting there, none of which would have appeared without
+actually running it:
+
+1. **Escalation never fired.** `flows/nightly_entities.py` resolved
+   `model = settings.entity_extraction_model` and passed it explicitly, so
+   `extract_entities`'s size check (`if model is None`) was dead code at every call
+   site. Both flows now pass `None` deliberately, with a comment saying why.
+2. **Every CLI failure had been reported as `"claude CLI exited 1: "` with nothing
+   after the colon.** The CLI puts its error in the *stdout* JSON envelope, not
+   stderr, and the code only read stderr. A context-limit failure had therefore been
+   undiagnosable for the entire session — it looked like a mystery exit code. Now
+   falls back to stdout when stderr is empty.
+3. **The timeout was below the measured cost.** The escalated call takes ~230s of
+   API time against a 240s default. Scaled by size rather than raised globally: for
+   a normal document a long wait still means something is wrong.
+
+## 2026-08-25 — Chunk-level dense retrieval built; the robots "gap" was never real
+
+**Built:** `corpus.chunking.windows` + `corpus.chunking.backfill` +
+`flows/backfill_chunks.py`, and a third lane (`chunk_dense_search`) fused into
+`hybrid_search`. **69,720 chunks across 3,245 documents, built in 23.9 minutes**,
+entirely locally — no API spend.
+
+**Why, in one number:** the dense lane previously searched `document_summary` — a
+five-sentence extractive summary, **~7% of a median transcript**. The build plan made
+chunk-level dense conditional on evidence that document-level was insufficient; that
+evidence was overwhelming once looked for.
+
+**Result on the query that exposed all of this** ("humanoid robots hardware"):
+
+| | before | after |
+|---|---|---|
+| coverage grade | none | **good** |
+| best score | 0.0006 | **0.4056** |
+| documents / sources | 0 / 0 | **20 / 14** |
+| time span | — | **660 days** |
+
+What chunk-level finds that summary-level structurally cannot is the point: a news
+roundup discussing robots at **18 minutes**, an interview at **35 minutes**, a
+compute discussion at **112 minutes**. None of those topics appear in a
+five-sentence summary of the whole video, so no phrasing of the query could have
+reached them.
+
+**Design choices worth recording:**
+- **Summary dense is kept, not replaced.** The two lanes answer different questions —
+  "what is this document *about*" versus "does it *discuss* this anywhere". A single
+  strong chunk can otherwise outrank a document entirely devoted to the topic.
+- **Best chunk, not mean chunk, scores a document.** Averaging would penalise exactly
+  what this lane exists to find: an hour-long video that covers the query well for
+  four minutes is a strong hit, and its mean chunk distance would deny it.
+- **Windows are built from whole segments**, so `start_ms`/`end_ms` survive and a hit
+  can cite a timestamp. `search_with_timestamps` exposes that; `hybrid_search`
+  deliberately does not, because after RRF and reranking a document's score no longer
+  belongs to any single chunk.
+- **Not named `late.py`** as the plan specified. Late chunking requires the whole
+  document to fit the encoder; nomic takes 8,192 tokens against a median transcript of
+  18,776 characters and a maximum near 1,000,000. Ordinary windowing in a file called
+  `late.py` would be a lie in the filename.
+
+**No HNSW index — and this was checked, not assumed.** An earlier note in this session
+claimed chunk search took 8.18s over ~9k vectors and would need one. That measurement
+was mis-attributed: it included the embedding model's first call, not the SQL. Measured
+properly over the full 70,107 vectors, warm: **median 0.102s**, with `EXPLAIN ANALYZE`
+showing a parallel scan costing ~24ms of database time. Building an index here would be
+the premature optimisation `migrations/0002`'s own comment warns against. Revisit when
+the corpus is an order of magnitude larger.
+
+## 2026-08-25 — CORRECTION: dense retrieval only ever searched 3.9% of the corpus
+
+**This invalidates several conclusions recorded below and reported as confident.
+Read this before trusting any dense-lane or reranker result dated earlier than it.**
+
+`document_summary.embedding` is the only thing the dense lane searches, and
+`document_summary.text` is the only thing the cross-encoder reranks. A document with
+no summary row is *invisible to both* — findable lexically by title, but not
+semantically, and never rerankable.
+
+`backfill_document_summaries` was only ever run with small development limits
+(30, then 100). So the corpus had **130 summaries for 3,344 documents — 3.9%**.
+Every dense search, every rerank, the whole relevance-gate eval, and the coverage
+feature were operating on that 3.9% while returning confident-looking results. The
+missing 96% never announced itself, because a retrieval system with a small index
+does not look broken; it looks decisive.
+
+**The concrete casualty: the "humanoid robots" null result.** This file and
+`docs/EVAL_RELEVANCE_GATE.md` record it as a real corpus gap "confirmed 4 ways" and
+"the strongest confirmation yet". It was not a finding — it was an artifact. The
+corpus contains **26 documents with "robot" in the title**, including *Intelligent
+Robots in 2026*, *Inside the World's Smartest Robot Brain [VLA]*, *Mistral robotics
+and physical AI*, and *Advanced dexterity with Gemini Robotics 2*. **None of them had
+a summary**, so no amount of re-querying the dense lane could ever have surfaced
+them.
+
+Both lanes failed, for unrelated reasons that happened to agree:
+- **dense/rerank** — the documents had no embeddings at all (this bug);
+- **lexical** — `plainto_tsquery` ANDs its terms, so "humanoid robots hardware"
+  requires all three, and *Inside the World's Smartest Robot Brain* contains none of
+  "humanoid" or "hardware".
+
+Two independent failures producing the same wrong answer four times is exactly why
+"confirmed N ways" is worth little when every confirmation runs through the same
+substrate. The paraphrase experiment varied the *wording* and concluded the gap was
+real; it could not have detected that the index itself was nearly empty.
+
+**Fixed:** `flows/backfill_summaries.py` — a proper, resumable, whole-corpus backfill
+(local only: TextRank + local embeddings, no API cost), committing per batch so an
+interrupted run resumes. Also `summarize_extractive` now caps output length, so the
+backfill cannot mass-produce the degenerate summaries described in the entry below.
+
+**Consequence for method, not just this bug:** dense-lane coverage is now something
+to assert and check, not assume. Any future claim that the corpus "has nothing" on a
+topic should be cross-checked against a lexical title search first — that lane needs
+no embeddings and would have caught this immediately.
+
+## 2026-08-25 — Coverage assessment added; found degenerate summaries poisoning rerank latency
+
+**Built:** `corpus.analytics.coverage.assess_coverage`, exposed as `GET /api/coverage`,
+the MCP tool `corpus_coverage`, and a dashboard panel. Answers what a ranked result
+list structurally cannot — search returns its ten best documents whether those are ten
+strong matches or the ten least-bad in a corpus holding nothing on the subject.
+
+**Measurement decisions, both inherited from this project's own eval work rather than
+invented:** top reranker score gates *existence* (measured separation is ~100x: 0.82
+and 0.068 for queries with real matches, 0.0006 for one without), while breadth is
+structural — distinct sources, time span, domain mix — because
+`docs/EVAL_RELEVANCE_GATE.md` already established that a *per-document* score
+threshold is unreliable here (genuine hits scored as low as 0.003 inside queries that
+had real matches). So: top score decides "is anything here", and breadth is measured
+over the top-ranked set, never over "documents above a quality bar" — a set this
+corpus cannot reliably identify.
+
+**Suggestions are grounded only in computed facts** — absent domains, single-source
+concentration, staleness, sources with nothing ingested, adjacent well-covered
+entities. Notably, a no-coverage query still reports what the corpus *does* hold
+nearby (derived from the low-scoring nearest documents), which is the most useful
+thing available when the honest answer is "nothing". What it will not do is suggest
+sources that don't exist in this corpus — that would be a guess wearing a data costume.
+
+### The real bug this surfaced
+
+Coverage on one query took **306 seconds**. Investigating rather than just lowering
+the candidate pool found something worse than slowness:
+
+| Query | Docs reranked | Total chars | Time |
+|---|---:|---:|---:|
+| "AI coding agents…" | 21 | 62,260 | **306s** |
+| "humanoid robots hardware" | 40 | 57,214 | 24s |
+
+Fewer documents, near-identical total text, 12x slower. The cause is a length
+outlier, not volume: document summaries here have a median of ~1,300 characters and
+a p90 of ~4,700, but the longest is **38,115**. Inspecting those outliers directly:
+the 38k summary contains **one** period and the next contains **zero**.
+
+That is the root cause, and it connects to work already done. `summarize_extractive`
+runs TextRank over NLTK sentence tokenization; ASR transcripts with no sentence
+punctuation present as a *single* sentence, so "top 5 sentences" returns the entire
+transcript. Because batching pads every sequence to the longest in its batch, one
+such document taxes its batch-mates too.
+
+**Fixed (defensive):** `corpus.embedding.rerank` now caps document text at 4,000
+characters. 306s → **30.5s**, with `best_score` unchanged at 0.8101 and the same 20
+documents from 18 sources — the cap cost no measurable quality on the query that
+motivated it, because what gets truncated is the tail of an un-summarized transcript.
+
+**Not fixed, and worth stating:** the degenerate summaries themselves. Six documents
+have summaries over 10k characters that are transcripts, not summaries. The real fix
+is running `corpus.enrich.restore` over those transcripts and re-summarizing — the
+restoration stage was built for exactly this reason (see its module docstring) but has
+only been validated on one document, never backfilled. The cap makes the system robust
+to the bad data; it does not make the data good.
+
+## 2026-08-25 — `newly_emerged_entities` was unbounded and chronologically ordered; now capped and ranked
+
+**Found while wiring the analytics panel:** `emerging_entities` returned **3,221
+rows** for a six-month window, where its two ranked siblings
+(`velocity.top_rising_entities`, `saturation.most_saturated_entities`) both cap at
+20. This was not a dashboard-only problem — `corpus.mcp.tools.corpus_analytics`
+passed it straight through, so an agent asking "what's emerging" got 3,221 rows
+dumped into its context window.
+
+Worse than the volume was the ordering. The function ordered by first-seen
+ascending, so the head of that list was whatever happened to appear in the earliest
+days of the window: `call subordinate`, `WebGL`, `MRI` — ASR noise and incidental
+mentions. Truncating a chronological list would have surfaced exactly that.
+
+**Chose:** added `limit: int | None = None` (default `None` keeps the existing
+"return everything" contract for any analytical caller) and changed the ordering to
+mention-count descending, matching how both ranked siblings sort.
+`corpus_analytics` now passes `limit=20`, consistent with them.
+
+**Behavior change, stated plainly:** ordering is no longer chronological. That is a
+real change, not a pure addition — `first_mention_date` is still on every row, so a
+caller wanting the timeline sorts it themselves. The same query now returns
+`Fable 5`, `Hermes`, `Claude Design` — genuinely new, genuinely discussed things —
+instead of the noise above.
+
+## 2026-08-25 — Search latency is set by `candidate_pool`, not `top_k`; dashboard defaults lower than MCP
+
+**Found while wiring the dashboard's search panel:** interactive search at the
+existing defaults was unusable — ~37s per *warm* query (i.e. after model weights
+were already loaded), plus a ~30s cold start on the first call of a process.
+
+Measured on this corpus, warm, same query:
+
+| Setting | Latency |
+|---|---:|
+| `rerank=False` (RRF-fused only) | **0.34s** |
+| `rerank=True, candidate_pool=10` | ~3s |
+| `rerank=True, candidate_pool=20` | ~6-10s |
+| `rerank=True, candidate_pool=50` (the default) | **~37s** |
+
+The knob is `candidate_pool`, not `top_k`: reranking is a cross-encoder pass over
+every candidate, so cost scales with how many candidates are considered, not how
+many are returned. This wasn't visible until now because every prior caller was a
+batch script or an agent, where 37s is irrelevant.
+
+**Chose:** `corpus.mcp.tools.corpus_search` gains `candidate_pool` and `rerank` as
+optional parameters (defaults unchanged at 50/True, so the MCP path and every
+existing caller behave exactly as before). The dashboard route passes
+`candidate_pool=20` and exposes a rerank toggle.
+
+**Rejected:** lowering the shared default to make the dashboard fast. That would
+silently change retrieval quality for the agent path — which can happily wait 37s
+for better recall — to fix a problem only the browser has. The tradeoff belongs at
+the call site, not baked into the shared function.
+
+**Stated honestly in the UI, because it's a real caveat:** a smaller candidate pool
+returns *different* results, not just faster ones — the top hit for the same query
+changed between pool=50 and pool=20 in testing. The dashboard's hint text says so
+rather than implying parity with what an MCP client sees.
+
+## 2026-08-25 — RSS adapter built: `sources/base.py` needed zero changes
+
+**Found (the actual point of step 10):** `base.py`'s `discover()` + per-id `fetch()`
+Protocol survived a structurally different source without modification. RSS's real
+shape is a genuine mismatch from YouTube's — a feed is parsed once and every item's
+content is already present in that one response, there is no per-item network fetch
+the way a video's transcript needs one. The interface still fit, using the exact
+caching pattern `YouTubeAdapter` already had for an unrelated reason (not re-fetching
+metadata `discover()` already carried, `_last_discovery_details`): `RssAdapter.
+discover()` parses the feed and caches each entry by guid; `fetch()` looks it up
+rather than making a second call. Confirms the interface generalizes, at the cost of
+one adapter needing this pattern for correctness, not just for optimization.
+
+**Chose:** `feedparser` (standard, well-maintained) for parsing. RSS content is real,
+human-authored text — `TranscriptProvider.NATIVE`, `is_auto_generated=False`,
+`provenance_confidence=KNOWN` — a genuinely higher-confidence provenance case than
+anything else in this corpus, which has been YouTube ASR transcripts throughout.
+
+**Verified against a real, live public feed** (Hacker News frontpage RSS), not a
+fixture: `isinstance(adapter, SourceAdapter)` holds, discovery returned 5 real
+entries, fetch returned real title/url/exact-precision published_at and correctly
+tagged provenance. Honest caveat, not a bug: this particular feed's entries are link
+stubs to the actual article, not full text — a property of that specific feed
+(confirmed by reading the actual raw payload), not a limitation of the adapter; a
+blog or podcast feed using `content:encoded` would yield the real article body.
+
+## 2026-08-25 — Punctuation restoration built; justification shifted from entities to summarization
+
+**Chose:** `corpus.enrich.restore`, `oliverguhr/fullstop-punctuation-multilang-large`
+(the model the plan named). Produces a new `transcript_version` row
+(`provider=RESTORED`, `derived_from_id` → parent) plus its own segment, never
+mutating the raw transcript — exactly the schema's own pre-existing design for this
+(`derived_from_id` and the `RESTORED` provider value both already existed, unused,
+before this).
+
+**Why build it now, given the earlier finding that Claude's extractor doesn't need
+it:** that finding is still true and this doesn't reverse it. The real, still-live
+reason is `corpus.enrich.summarize.summarize_extractive`'s NLTK sentence
+tokenization, which TextRank depends on for sentence boundaries — and has nothing to
+work with on ASR text with no periods or question marks at all. This step's
+justification moved from the entity extractor (where it turned out unnecessary) to
+the summarization pipeline (where it's genuinely still needed), not invented fresh.
+
+**Scoped down, explicitly:** only punctuation is model-based. Truecasing is a plain
+sentence-boundary heuristic (capitalize the first word and whatever follows `.`/`?`)
+— real truecasing (proper nouns mid-sentence: "openai", "chpd" stay lowercase/
+mistranscribed in the tested output) needs its own model or an NER pass. Not faked
+with a heuristic that would silently underperform its own name; left as real,
+visible future work.
+
+**Verified on a real document:** restored a real ~130K-character transcript,
+inspected the output directly — coherent sentence boundaries, correct capitalization
+at sentence starts, ASR mistranscriptions ("chpd" for ChatGPT) preserved rather than
+corrected (correctly out of scope for a punctuation-only model). Not backfilled
+across the corpus in this pass — one real, inspected document is the validation;
+a full backfill is real remaining work, not done here to keep this loop moving.
+
+## 2026-08-25 — Speaker attribution (tier 1): entity-table validation added after real testing caught two false positives
+
+**Chose:** `corpus.enrich.speakers`, tier 1 only (channel_default/title_parsed/
+description_parsed) — diarization stays a separate opt-in flow, per the plan.
+Calibrated against a real 25-document sample before writing any pattern (most
+content here is solo-creator with no guest; guest names, when present, more often
+live in the description than the title).
+
+**Found by actually testing the first version, not by inspection:** two real false
+positives. (1) "with X" in a title — the phrase almost always names a *tool* in this
+corpus ("...with Claude Code"), not a guest; dropped the pattern entirely rather than
+qualify it, since keeping it and hoping it's rare would have kept misattributing tool
+names as people. (2) A two-word channel name shaped like "Firstname Lastname" isn't
+always a person — "Better Stack" is a real devtools company — and no regex
+distinguishes it from "Dan Martell" by shape alone.
+
+**Fixed:** every raw guess is now validated against this corpus's own entity table
+before being trusted — a match on a known VENDOR/PRODUCT/ORGANIZATION/TECHNIQUE/
+REGULATION entity rejects the guess outright, a match on PERSON confirms it, boosts
+confidence, and links `canonical_entity_id`. Two independently-built pipelines
+cross-checking each other, not one more heuristic layered on the same blind spot.
+
+**Verified on a real 300-document batch:** 160 channel_default, 4 description_parsed,
+136 correctly fell through to `unknown` rather than a false assertion — including
+"Better Stack" and other clear brand accounts. 93 of the 300 cross-validated against
+an existing PERSON entity. Also caught, same pass: "Leon van Zyl" (lowercase surname
+particle) was missed by the original all-title-case pattern — fixed by allowing an
+optional lowercase particle in the name regex.
+
+## 2026-08-25 — Independent judge audit: 80% agreement, below the stated threshold, with a specific pattern
+
+**Chose:** since a genuine human audit (`docs/EVAL.md`'s own stated mitigation for
+LLM-assisted labeling bias) isn't something achievable autonomously, ran a proxy
+instead: sampled 35 of 173 cached judgments and re-judged each with a deliberately
+different prompt bias — steelmanning relevance ("make the strongest honest case this
+IS relevant, then give your real verdict") rather than the original judge's
+skeptical-by-default framing. This is explicitly a proxy, not a substitute — it
+checks robustness to prompt framing, not independence from the underlying model.
+
+**Found:** 28/35 agreed (80.0%) — below the ~85% (15% override) line `docs/EVAL.md`
+names as the point where assisted labels stop being trustworthy. Taken at face value
+this is a real, mildly concerning result. But the pattern in the 7 disagreements is
+specific enough to change what it means: **every single one is `irrelevant →
+marginal`** — the steelman framing found a marginal case for relevance the original
+judge missed, in some fraction of borderline documents. Zero disagreements crossed
+into `relevant`, and zero touched anything already judged `relevant` or `marginal`.
+
+**Consequence:** the instability lives entirely at the soft irrelevant/marginal
+boundary — which the rubric's own three-way split already treats as the fuzzy edge,
+not the load-bearing one. Every precision@10 number this project has reported counts
+only strict `relevant` as a hit, and that boundary showed zero disagreement in this
+sample. The lenient (relevant+marginal) numbers are the ones this finding should
+make you trust less. Not re-running the full eval against corrected labels — the
+proxy audit itself, not the underlying judgments, is what would need to scale up
+(a larger sample, or an actual human pass) before treating this as fully resolved.
+
+**Chose:** `queries.yaml` extended from 3 queries to 12 — 3 genuine paraphrases per
+original (different vocabulary, same information need), per the build plan's own
+recommendation for reaching a defensible query count. Two of the three marketing
+paraphrases were written to deliberately take opposite sides of the ambiguity the
+harness's first run surfaced ("tools" as software products vs. as a general topic).
+
+**Found:** the robots-hardware null result (0/10 relevant) now holds across all 4
+phrasings — original plus 3 differently-worded paraphrases, run independently. That
+is meaningfully stronger evidence than the single-wording result this doc already
+recorded; a query that returns nothing under one specific phrasing could be a wording
+problem, but the same result under four unrelated phrasings is much more likely a
+real gap in the corpus.
+
+**Found, unexpected:** the marketing-query ambiguity finding didn't hold up as cleanly
+as expected. All 4 marketing phrasings scored low (0.00-0.20 precision@10) regardless
+of whether the wording leaned toward "content about marketing work" or "named
+software tools" — suggesting the original zero result wasn't purely the wording
+ambiguity previously diagnosed, but also reflects real scarcity of strong marketing
+content in this retrieval scope. The earlier finding isn't wrong, just incomplete —
+worth remembering that a single query's diagnosis doesn't always generalize to its
+paraphrase family.
+
+**Found, useful:** the coding-agents paraphrases split lanes in an informative way —
+more literal, name-heavy phrasing ("Claude Code, Codex, and similar coding agent
+tools") favored lexical search (precision 0.33) over dense/reranked (0.20), while
+more abstract phrasing favored the reverse. This is exactly the kind of per-category
+signal a 3-query eval set is too small to surface reliably.
+
+## 2026-08-25 — Step 7 eval harness's first real run: query wording is ambiguous, not the harness
+
+**Built:** `corpus.eval.{pool,judge,run,report}` per the build plan's step 7 — pooled
+candidates across lexical/dense/reranked lanes, LLM-assisted judging cached to disk
+(so re-running an unchanged corpus reproduces scores exactly, the plan's own stated
+verification standard), per-lane precision/recall, timestamped JSON output.
+
+**Found on the first real run, initially looking like two bugs, neither one was:**
+
+1. `q_marketing_seo` scored 0/15 relevant across every lane. Read the judge's actual
+   reasoning rather than assuming a bug: it reads "marketing, SEO, and advertising
+   *tools*" as asking about named software products (Google Ads, HubSpot, Ahrefs),
+   and correctly rejected `Claude Design + Claude Skills: Automate Your Marketing` —
+   a document I personally judged Relevant earlier this session — on exactly that
+   basis: it's content about *doing* marketing work, not a tool being discussed. Both
+   readings are defensible; the query text itself is ambiguous between them. This is
+   a real methodological finding the harness surfaced by actually working, not a
+   harness defect. `queries.yaml`'s `notes` field records this so a future
+   re-wording is a deliberate choice, not a silent rescore.
+2. `q_coding_agents`'s dense and reranked lanes scored identically (precision,
+   recall, both strict and lenient — all four numbers matched to full float
+   precision). Checked directly rather than assuming a fusion bug: the two lanes'
+   candidate sets differ by exactly one document each way (14/15 overlap), and that
+   swap happened to not change the relevant count — a genuine coincidence, not
+   reranking silently no-op'ing.
+
+**Consequence:** the harness works as designed. `q_robots_hardware` scoring 0/15 a
+third time, now via a fully independent fresh judge call (not reused from this
+session's cache), is the strongest confirmation yet that this is a real corpus gap,
+not an artifact of any one judging pass.
+
+**Known, stated gap:** `queries.yaml` is seeded with 3 queries this project's own
+eval work already has real ground truth for, not the build plan's original 10 — that
+wording isn't available in this codebase, only fragments quoted inside the plan
+itself. Extending to the real 10 (plus paraphrases, per the plan's own recommendation
+to reach 30-40) is real, not-yet-done work, not an oversight glossed over.
+
+## 2026-08-25 — Reranker loaded in bfloat16 by default, causing real score collisions
+
+**Found:** building step 8's fusion pipeline and testing it against a real 38-document
+candidate batch, two documents got bit-for-bit identical rerank scores
+(`0.43782350420951843`, matched to full float precision, not a rounding artifact).
+Widened the check across the whole batch: **16 of 38 scores (42%) collided with at
+least one other document's score**, across 7 distinct duplicate groups.
+
+**Isolation trail** (each step ruled out one explanation before finding the real one):
+1. Different document IDs, genuinely different summary text — not a duplicate-data bug.
+2. The colliding pair scored *differently* (0.469 vs 0.438) when reranked alone,
+   outside the 38-document batch — so it's batch-composition-dependent, not a pure
+   text-content issue.
+3. `batch_size=1` (no internal batching) reduced but did not eliminate collisions
+   (31/38 unique, still 7 affected) — ruled out simple padding/batching as the sole
+   cause.
+4. Model's `max_seq_length` is 40,960 tokens; longest colliding summary was ~700
+   tokens — ruled out truncation.
+5. Read `sentence-transformers`' own `CrossEncoder`/`LogitScore` source directly: it
+   has an explicit, defensive check (`_verify_left_padding`) that raises a loud
+   `ValueError` if padding side is wrong. No error was raised — ruled out incorrect
+   padding side, despite that being the most likely-looking culprit from the code.
+6. Checked token lengths of colliding pairs directly: genuinely different (197 vs
+   249 vs 238; 205 vs 608) — ruled out same-length-padding-collision.
+7. Checked the model's actual loaded dtype: **`torch.bfloat16`** (the library's
+   default for this model class). bfloat16 has ~2-3 significant decimal digits of
+   precision — plausible that two different documents' true/false logit difference
+   quantizes to the exact same value.
+8. Confirmed directly: reran the identical 38-document batch with `dtype=torch.float32`
+   forced — **0 collisions, 38/38 unique scores**. Root cause confirmed.
+
+**Chose:** `corpus.embedding.rerank._get_model()` now loads with
+`model_kwargs={"dtype": torch.float32}`. `reranker_model_version()` bumped
+(`...:fp32`) so any future comparison against pre-fix results is never silently
+blended with post-fix ones.
+
+**Consequence — re-verified, not left as an open caveat:** re-ran all three eval
+queries against the fixed reranker (`docs/EVAL_RELEVANCE_GATE.md`'s second
+superseding update). Result: 0.70→~0.70-0.80, 0.50→0.60, 0.00→0.00 — the fix didn't
+overturn the earlier conclusion, and the marketing query's precision improved
+slightly, consistent with removing corrupted tie-breaking rather than changing the
+model's actual judgments. One caveat this re-run keeps: a small number of
+newly-surfaced candidates were judged from title context rather than re-reading
+every transcript, for cost reasons — a smaller, bounded version of the same
+title-only risk this file's own history (the "Correction" entries above) already
+demonstrates can mislead.
+
+**Second bug found immediately after the first fix:** forcing fp32 fixed the
+collision bug but roughly doubled activation memory on top of this model's ~16GB of
+fp32 weights, and a real 50-candidate batch hit an MPS OOM (48GB unified memory
+exceeded) using the library's default internal batch size. Fixed by passing
+`batch_size=4` explicitly to `.predict()` — bounds activation memory without
+touching weight memory or precision. Confirmed: the same 50-candidate batch that
+OOM'd now completes with 50/50 unique scores.
+
+## 2026-08-25 — Validation of step 5 analytics caught a real output-format bug in drift.py
+
+**Found:** validating `co_occurring_kinds_by_period` against an independent, from-
+scratch SQL query (the same cross-check method used for velocity and saturation, both
+of which matched cleanly on the first try) initially showed a mismatch. Root cause
+wasn't the module's counting logic — it was the *validation query itself*,
+misreading the function's period label. A bucket returned as `{2026-08-01: {...}}`
+reads as "starting August 1st"; it actually meant "ending August 25th, starting
+around March 28th" — nearly five months earlier than the label suggested. I wrote
+the wrong independent check because the label misled me, the person who'd just
+written the original code, within the same session.
+
+**Chose:** `_period_bounds` (was `_period_start`) now returns `(period_start,
+period_end)` explicitly, and `co_occurring_kinds_by_period` keys its output on that
+tuple instead of a single date. No single date format can convey "the window ending
+here" without also saying where it starts, so returning one bound was never going to
+be safe regardless of which bound was picked.
+
+**Why this matters beyond one function:** the counting logic itself was correct — a
+second independent check against the corrected window matched exactly. This wasn't a
+math bug, it was a case of a correct answer being unreadable in a way that produces
+wrong conclusions downstream, which is arguably worse: a broken query fails loudly,
+a misleading label fails silently, in whoever reads the output next.
+
+## 2026-08-25 — Step 5 analytics: live queries, not materialized views
+
+**Chose:** `corpus.analytics.{velocity,emergence,saturation,drift,diffusion}`
+implemented as plain parameterized queries over `entity_mention`/`document`/`source`,
+run live on every call. The build plan's module structure called for materialized
+views plus a refresh flow; skipped both.
+
+**Why:** at this corpus's actual current scale (289k mentions, 3,344 documents), a
+GROUP BY over the full `entity_mention` table runs comfortably fast — tested directly
+against real data (`top_rising_entities`, `most_saturated_entities`, etc. all
+returned in well under a second). A materialized view's whole value is avoiding
+recomputation of an expensive aggregate; there's nothing expensive to avoid yet, so
+building the refresh machinery now would be solving a problem this corpus doesn't
+have.
+
+**Consequence:** revisit if `EXPLAIN ANALYZE` on these queries stops being fast once
+the corpus grows substantially past current scale — the module docstrings flag this
+explicitly rather than presenting live queries as a permanent design choice. No
+`flows/nightly_analytics.py` exists for the same reason: there's no view to refresh.
+
+**Also:** every analytics function takes `domain: Domain | None` as a required
+keyword, not an optional filter defaulting to "all" — `Domain`'s own docstring is
+explicit that analytics filter by domain by default and cross-domain blending is an
+opt-in (`domain=None`), specifically so "mentioned 200 times" doesn't silently mean
+different things for a vendor name and a self-help phrase.
+
+## 2026-08-24 — Entity extraction timeout raised to 240s for concurrent runs
+
+**Chose:** `ENTITY_EXTRACTION_TIMEOUT_S=240.0` (was the 120.0 default), set in `.env`
+and `.env.example`, after a 500-document `--concurrency 20` test batch failed 65/500
+(13%). Root-caused before changing anything: 53 of the 65 were plain
+`claude CLI timed out after 120.0s` — not auth or rate-limit errors — and this
+session's own earlier concurrency benchmarking (the 15-way and 25-way tests) had
+already measured individual call latency reaching ~130-250s under similarly high
+concurrent load. 120s was simply too tight for `--concurrency 20`, not a sign of
+anything actually wrong with those documents or calls.
+
+**Rejected:** lowering `--concurrency` instead of raising the timeout. Concurrency is
+the whole reason this backfill is tractable at all — trading away most of that
+speedup to work around a client-side timeout that's cheap to just raise would be
+solving the wrong problem.
+
+**Not fixed, and not attempted:** the other 12/65 failures were a distinct issue —
+`model output did not match the entity schema`, the *actual* Claude response
+truncated mid-JSON on documents with a lot of entities (a real response cut off
+mid-key, e.g. `..."MailScale", "kind"` with nothing after it — not a subprocess
+timeout, the model itself stopped generating before the JSON closed). No `--max-
+tokens`-equivalent flag exists on `claude -p` headless mode to raise an output cap
+directly. Left as a known residual failure mode rather than a workaround — these
+documents get no `entity_mention` row, so `find_unenriched_documents` retries them
+automatically on the next run, and a fix (pagination, or detecting and retrying
+specifically on this error class) is real scope, not a one-line change.
+
+**Consequence:** re-run a validation batch with the new timeout before trusting it
+against the full ~2,759-document remaining backlog — one bad number already
+correlated with one bad assumption once this session (the reranker instruction
+test); confirm before scaling up again.
+
+## 2026-08-25 — Two more entity-extraction bugs found running the real backfill, one accepted as a permanent limit
+
+Running the full corpus backfill to completion surfaced two more issues beyond the
+timeout above, both worth recording since they're the difference between "corpus
+fully processed" and "silently missing rows forever":
+
+**Fixed:** `find_unenriched_documents` and its equivalent in
+`corpus.enrich.relevance_gate` checked `entity_mention` to decide "already
+processed" — but a document with zero real entities produces zero mention rows,
+indistinguishable from "never attempted," so it was being re-queued and reprocessed
+on every single run, forever, burning a full Haiku call each time for no new
+information. Added `EntityExtractionRun` (migration `0009`), a completion marker
+written regardless of mention count, and switched both functions to check it
+instead. Backfilled it from existing `entity_mention` rows (3,220 docs) plus every
+"-> N mention(s)" line across this session's run logs (3,279 lines, including the
+zero-mention successes with no `entity_mention` row to recover from) before trusting
+the new check — skipping that backfill would have made the very next run reprocess
+the entire corpus from scratch.
+
+**Fixed:** `_strip_markdown_fence` anchored the closing fence to end-of-string, so
+when Claude closed the JSON fence and then added explanatory prose after it (e.g.
+"```\n\n" then "This transcript contains no identifiable named entities...") the
+parse failed entirely — a genuinely correct `{"entities": []}` result was being
+discarded as a schema error. Now extracts the *first* fenced block instead of
+requiring the fence to end the string.
+
+**Not fixed, accepted as a permanent limit:** one document's transcript is
+1,023,757 characters (~250k tokens) — over Haiku's 200K context window on its own,
+before the prompt or instructions are even added. It fails identically every time,
+not transiently, because the document literally cannot fit in a single `claude -p`
+call. Building chunked multi-call extraction to handle one outlier document (of
+3,344) isn't proportionate right now; left as a known gap rather than solved.
+
+## 2026-08-24 — Reranker is Qwen3-Reranker-4B, not bge-reranker-v2-m3, but unproven
+
+**Chose:** `Qwen/Qwen3-Reranker-4B` (Apache-2.0, confirmed via web search 2026-08-24)
+over the build plan's original `bge-reranker-v2-m3` pick for
+`corpus.embedding.rerank`. The plan's choice was sized for "runs fine on any hardware";
+this corpus's actual machine (M5 Pro, 48GB unified memory) has real headroom for a
+larger model, and Qwen3-Reranker benchmarks ahead of BGE v2 on public reranking
+leaderboards as of the search above. `mxbai-rerank-v2` (mixedbread.ai, also
+Apache-2.0) was the other candidate considered, not chosen only for being a less
+familiar quantity — no strong reason to prefer one over the other, revisit if
+Qwen3-Reranker underperforms in practice.
+
+**Confirmed, after two false starts:** the first reranker test (judged from titles)
+looked like a loss; re-judged from transcript summaries it looked like a wash; only
+once `docs/EVAL_RELEVANCE_GATE.md`'s marketing/SEO query was re-run with all 16
+candidate documents read in full (actual transcript text) did a real signal show up —
+reranking with a corpus-specific instruction scored 0.50 precision@10 (strict) against
+cosine similarity's 0.20, and surfaced two genuinely on-topic documents cosine missed
+entirely. Two title-only-or-summary-only misreads before the real number is the
+concrete argument for why this project's own eval discipline (read the actual text,
+`docs/EVAL.md`'s standard) isn't overhead — it's the difference between a true result
+and two different wrong ones.
+
+**Closed out:** all three original eval queries re-judged at this rigor. Reranking won
+clearly on the two queries with real candidates in the backlog (0.70 vs 0.50, 0.50 vs
+0.20 precision@10) and was a neutral wash (0.00 vs 0.00) on the one query — humanoid
+robots — where the backlog genuinely has no good match left, which reranking cannot
+manufacture. **Consequence:** `--rerank` (with the custom instruction in
+`corpus.embedding.rerank`) is the evidenced default for `flows/query_entities.py`. The
+remaining open lever is `max_distance`/`min_score` — a threshold that says "nothing
+relevant here" instead of returning the least-bad noise, which is what the robots
+query actually needs and no reranker fixes.
+
+## 2026-08-24 — `domain` enum was missing 'general', crashing the backfill
+
+**Chose:** migration `0008_domain_general` (`ALTER TYPE domain ADD VALUE
+'general'`) plus the matching `Domain.GENERAL` member in `db/enums.py`.
+
+**Why:** earlier the same day, 14 seed rows were added under `domain: general`
+(education/documentary/business content kept on request rather than dropped —
+see the entry further down this file). The seed YAML was updated but the DB
+enum backing `source.domain` was not, and nothing caught the mismatch until the
+backfill actually reached one of those rows and crashed with `ValueError:
+'general' is not a valid Domain` — the seed loader has no schema validation
+against the DB enum, so this could only surface at the exact row, not at load
+time.
+
+**Consequence:** this is the second time in the same run that a discovery-time
+or persistence-time failure took down every channel queued after it (see the
+entry above on `ingest_source` now catching discovery errors) — this one wasn't
+caught by that fix because it happens in `get_or_create_source`, before
+`ingest_source` is even called. Worth a general lesson: adding a new seed-table
+value (domain, authority_tier, phase) needs a check against the corresponding
+DB enum as part of making the change, not discovered later by a crash.
+
+## 2026-08-24 — A channel's discovery failure no longer crashes the whole run
+
+**Chose:** `ingest_source` catches `SourceError` around the `adapter.discover()`
+call, records that one channel as failed (`IngestSummary(discovered=0, failed=1,
+...)`), and returns — the rest of the queued channels still run.
+
+**Rejected:** letting it propagate (the original, and buggy, behavior).
+
+**Why:** the 169-channel backfill crashed outright partway through — not a
+bot-detection issue this time, a real, permanent one: `@amazonwebservices`
+(`research-p3-deferred` phase, 18,000 videos) has no `/videos` tab yt-dlp can
+list at all, exactly why that seed row says "ingest by curated playlist, never
+by channel." Nothing caught that `ProviderBlocked`, so it unwound straight out
+of `run_ingestion` and killed every channel still queued behind it. A
+discovery failure is a property of one channel, not of the run.
+
+**Consequence:** running the full seed table with no `--phase` filter (which
+includes `research-p3-deferred`) is now safe rather than a guaranteed eventual
+crash — this bug was latent from the day `run_ingestion` first supported
+multiple seeds, just never triggered until a full unfiltered run actually
+reached that row.
+
+## 2026-08-24 — Channel-level concurrency for the Supadata backfill: reverted
+
+**Chose:** `metadata_source="ytdlp"` (free, exact timestamp), `concurrency=1`
+(sequential channels) — the setup already working before this experiment.
+
+**Rejected:** `metadata_source="supadata"` (a second Supadata batch job instead
+of yt-dlp, ~1 credit/video, date-only precision) plus `concurrency>1` (multiple
+channels processed at once via a thread pool), built specifically to chase a
+"10x speedup" request.
+
+**Why:** The whole point of moving metadata onto Supadata was to remove yt-dlp
+from the fetch path so channels could safely run concurrently (yt-dlp metadata
+calls are kept sequential after tripping bot detection once — see the entry
+above). That part worked — no errors, correct data, real concurrent execution
+confirmed (multiple channels' `discovered` events firing at the identical
+timestamp). But the actual wall-clock didn't improve: 5 channels at
+`concurrency=3` took 171s; the same 5 at `concurrency=5` **and** `SUPADATA_RPS`
+raised from 2.0 to 10.0 took 177s — statistically identical, and no faster than
+sequential (~160s estimated at ~32s/channel). Neither client-side lever tested
+(our rate limiter, our concurrency level) was the actual bottleneck.
+
+**Inference, not confirmed:** the constraint is most likely Supadata's own
+backend processing a limited number of batch jobs concurrently per account
+(plausibly 1-3) regardless of how many are submitted or how fast we're allowed
+to poll — consistent with submission being near-instant but completion time
+being roughly constant regardless of concurrent load. Not verified directly
+(would need Supadata's side of things, e.g. asking their support about
+per-account concurrent-job limits) — recorded as inferred so it doesn't get
+mistaken for a confirmed fact later.
+
+**Consequence:** paid ~200 credits and real wall-clock time on this experiment
+for no lasting speed benefit. The code paths (`metadata_source="supadata"`,
+`concurrency` in `run_ingestion`) are kept — cheap to keep, and Supadata's
+internal throttling could plausibly vary (load, time of day, plan changes) — but
+default back to the free/precise/sequential setup unless a future check shows
+different results.
+
+## 2026-08-24 — `discover_since`'s per-video metadata calls are sequential, not pooled
+
+**Chose:** Walk a channel's candidate video ids one at a time, checking each one's
+publish date via yt-dlp's per-video `--dump-single-json` metadata call, with a
+0.6s delay between calls, stopping at the first confirmed-older video (the
+channel listing is newest-first, so nothing after it can be in range either).
+
+**Rejected:** A small thread pool (5 concurrent workers) over the same calls —
+the first version built, and what actually shipped in the first real backfill
+attempt.
+
+**Why:** The concurrent version tripped YouTube's "sign in to confirm you're not
+a bot" wall on the very first channel in a 169-channel run — all 60 metadata
+candidates failed identically. Confirmed by isolation: the same failing video
+ids still failed on a paced *sequential* retry minutes later (so it wasn't pure
+concurrency — something had already tripped and doesn't clear immediately), but
+unrelated well-known videos succeeded fine throughout. The per-video metadata
+endpoint this hits is evidently far more bot-detection-sensitive than the
+`--flat-playlist` listing endpoint used elsewhere in this module (`resolve_
+subscriptions_full.py`'s 5-worker pool over ~425 channels never hit this,
+confirmed the same session) — bursting ~300 near-simultaneous requests against
+it is what did it, even though the block outlives the burst once tripped.
+
+**Consequence:** this cost roughly an hour of yt-dlp cooldown before the actual
+169-channel backfill could be retried, and is why `discover_since` now also
+stops at the first out-of-range video instead of unconditionally checking a
+fixed candidate batch — fewer calls needed per channel in the normal case, not
+just a gentler pace, since most channels don't post daily.
+
 ## 2026-08-23 — Entity extraction is Claude Code (headless), not GLiNER/gazetteer
 
 **Chose:** One `claude -p` call per document, model pinned to `haiku`, authenticated

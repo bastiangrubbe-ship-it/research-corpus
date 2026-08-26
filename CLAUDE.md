@@ -61,11 +61,30 @@ via `APP_DATABASE_URL`, or it passes for the wrong reason.
 
 ## Current state
 
-Steps 1-3 of 11 complete: schema + RLS, the YouTube source adapter, and ingestion
-(hand-rolled, not dlt — see `docs/DECISIONS.md`). 155 channels verified into
-`seeds/youtube_channels.yaml`. A local dashboard (`web/`, backed by
-`src/corpus/web/`) gives live ingestion progress, manual channel add, and
-folder-watch — see `web/README.md`. Next is metadata/entity extraction (step 4).
+Steps 1-5 and 7-10 complete. The corpus holds **3,344 documents** from 169 YouTube
+channels plus RSS, fully enriched: 292k entity mentions, 3,267 document summaries,
+**70k transcript chunks** with embeddings, and speaker attribution in progress.
+
+- **Retrieval** is three lanes fused with RRF then reranked: lexical (Postgres FTS),
+  document-level dense (summary embeddings), and chunk-level dense (transcript
+  windows). Measured lane precision/recall is in `docs/EVAL_RELEVANCE_GATE.md`.
+- **Analytics** (velocity, emergence, saturation, drift, diffusion) answer Q7/Q8
+  with no embeddings and no LLM.
+- **MCP** exposes `corpus_search`, `corpus_analytics`, `corpus_coverage`,
+  `corpus_provenance`. `corpus_synthesize` is the one tool not built — it needs
+  `synthesis/mapreduce.py`.
+- **The dashboard** (`web/`, backed by `src/corpus/web/`) has 12 panels covering all
+  of the above plus the original ingestion controls — see `web/README.md`.
+
+Not done: step 0 (baseline capture), step 6's chunk-level *re-embedding* tooling,
+step 11 (Linux dry run), and `synthesis/`. Speaker attribution and transcript
+restoration both work but have only been run over part of the corpus.
+
+**Two standing cautions, learned the hard way** (both in `docs/DECISIONS.md`):
+a partially-built index does not look broken, it looks decisive — assert index
+completeness before trusting a "nothing found" result; and "confirmed N ways" is
+worth little when every confirmation runs through the same substrate.
+
 The full build order and the reasoning behind every deviation from it are in
 `docs/DECISIONS.md`.
 
@@ -73,6 +92,15 @@ The full build order and the reasoning behind every deviation from it are in
 
 Read when the work calls for them, not by default.
 
+- `docs/BUILD_PLAN.md` — the original 11-step plan, recovered 2026-08-26. Read it for the
+  *criteria*, not the build order: it defines the ten spec queries and the kill criterion
+  that decide whether this corpus is worth keeping. Those ten queries no longer exist as
+  text, so step 0 is still blocked — see the header there
 - `docs/SUPADATA.md` — the confirmed Supadata API schema and what it does *not* provide
 - `docs/SCHEMA.md` — table-by-table design notes and the RLS mechanics
 - `docs/DECISIONS.md` — what was chosen, what was rejected, and why
+- `docs/EVAL.md` — entity extraction: rubric, scoring, and extractor comparison results
+- `docs/EVAL_RELEVANCE_GATE.md` — first-pass precision check on the local embedding
+  relevance gate that decides which documents get a `claude -p` call
+- `web/README.md` — running the dashboard (12 panels: search, coverage, analytics,
+  eval runs, MCP tools, enrichment triggers, RSS feeds, plus the original ingestion set)
