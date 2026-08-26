@@ -18,7 +18,14 @@ from corpus.config import get_settings
 from corpus.db.session import tenant_session
 from corpus.ingest.runner import resolve_tenant_id
 from corpus.ops.credit_usage import summarize
+from corpus.web.analytics import router as analytics_router
+from corpus.web.coverage import router as coverage_router
+from corpus.web.enrichment import router as enrichment_router
+from corpus.web.eval_history import router as eval_router
+from corpus.web.mcp_tools import router as mcp_router
+from corpus.web.rss import router as rss_router
 from corpus.web.runs import manager
+from corpus.web.search import router as search_router
 from corpus.web.seeds import SeedInputError, append_seed, load_all_seeds, resolve_input
 from corpus.web.watch import watcher
 
@@ -31,6 +38,17 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Feature areas added after the original ingestion dashboard live in their own
+# router modules (see docs/DECISIONS.md) — the five routes below predate that and
+# stay inline rather than being churned for symmetry.
+app.include_router(search_router)
+app.include_router(analytics_router)
+app.include_router(coverage_router)
+app.include_router(eval_router)
+app.include_router(mcp_router)
+app.include_router(enrichment_router)
+app.include_router(rss_router)
 
 
 @app.get("/api/seeds")
