@@ -1,7 +1,7 @@
 # research-corpus dashboard
 
-Local dashboard over the whole corpus: search and provenance, analytics, coverage,
-eval history, the MCP tool catalogue, enrichment triggers, and the original
+Local dashboard over the whole corpus: search and provenance, synthesis, analytics,
+coverage, eval history, the MCP tool catalogue, enrichment triggers, and the original
 ingestion controls. Talks to the FastAPI backend in `src/corpus/web/` (this
 project's Python side) over HTTP + SSE.
 
@@ -28,7 +28,7 @@ network-reachable.
 
 ## What it does
 
-Twelve panels. `App.tsx` is a shell; each panel is its own component under
+Thirteen panels. `App.tsx` is a shell; each panel is its own component under
 `src/components/`, sharing one `App.module.css`.
 
 ### Reading the corpus
@@ -36,6 +36,13 @@ Twelve panels. `App.tsx` is a shell; each panel is its own component under
 - **Search** — the full hybrid stack: lexical + document-dense + chunk-dense, RRF-fused
   and reranked. Rows expand to show provenance, and `document_id` is copyable because
   the restore panel takes one.
+- **Synthesize** — the opposite trade to search. Reads *every* document matching a
+  filter, in full, and answers from all of them with citations. This is the only panel
+  that spends real quota per use (one LLM call per matched document, minutes not
+  seconds), so it prices the filter as you type and will not run unfiltered. A capped
+  run says how many documents it did not read, right next to the answer — a partial
+  read presented as a complete one is the specific failure this panel is built to
+  avoid.
 - **Coverage** — how well the corpus covers a topic (none/thin/partial/good) and what
   would improve it. It always reports how much of the corpus is actually indexed;
   read that number before believing a low grade.

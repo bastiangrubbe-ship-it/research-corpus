@@ -61,9 +61,14 @@ via `APP_DATABASE_URL`, or it passes for the wrong reason.
 
 ## Current state
 
-Steps 1-5 and 7-10 complete. The corpus holds **3,344 documents** from 169 YouTube
+Steps 1-5 and 7-10 complete. The corpus holds **3,349 documents** from 169 YouTube
 channels plus RSS, fully enriched: 292k entity mentions, 3,267 document summaries,
-**70k transcript chunks** with embeddings, and speaker attribution in progress.
+**70k transcript chunks** with embeddings, speaker attribution over every document,
+and punctuation restoration over every raw transcript.
+
+Speaker attribution leaves 54% of documents at `attribution_method='unknown'`. That
+is the designed outcome for tier-1 heuristics over metadata, not a shortfall — "we
+could not tell" is a different claim from a guess, and the column records which.
 
 - **Retrieval** is three lanes fused with RRF then reranked: lexical (Postgres FTS),
   document-level dense (summary embeddings), and chunk-level dense (transcript
@@ -72,16 +77,16 @@ channels plus RSS, fully enriched: 292k entity mentions, 3,267 document summarie
   with no embeddings and no LLM.
 - **Synthesis** (`synthesis/mapreduce.py`) reads *every* document matching a SQL/
   full-text filter and reduces them to cited prose. Unlike the other three, it costs
-  one LLM call per matched document — always `dry_run` first, and note that a capped
-  run reports what it dropped rather than presenting a partial read as complete.
+  one LLM call per matched document — always `dry_run`/`/api/synthesis/plan` first, and
+  note that a capped run reports what it dropped rather than presenting a partial read
+  as complete.
 - **MCP** exposes all five tools: `corpus_search`, `corpus_analytics`,
   `corpus_coverage`, `corpus_synthesize`, `corpus_provenance`.
-- **The dashboard** (`web/`, backed by `src/corpus/web/`) has 12 panels covering all
+- **The dashboard** (`web/`, backed by `src/corpus/web/`) has 13 panels covering all
   of the above plus the original ingestion controls — see `web/README.md`.
 
 Not done: step 0 (baseline capture), step 6's chunk-level *re-embedding* tooling, and
-step 11 (Linux dry run). Synthesis has no dashboard panel yet — it is reachable via
-MCP and Python only.
+step 11 (Linux dry run).
 
 Summaries and chunks were derived from *raw* transcripts and are not re-derived after
 restoration; that is a deliberate deferral, not an oversight, since it means
@@ -114,5 +119,6 @@ Read when the work calls for them, not by default.
 - `docs/EVAL.md` — entity extraction: rubric, scoring, and extractor comparison results
 - `docs/EVAL_RELEVANCE_GATE.md` — first-pass precision check on the local embedding
   relevance gate that decides which documents get a `claude -p` call
-- `web/README.md` — running the dashboard (12 panels: search, coverage, analytics,
-  eval runs, MCP tools, enrichment triggers, RSS feeds, plus the original ingestion set)
+- `web/README.md` — running the dashboard (13 panels: search, synthesis, coverage,
+  analytics, eval runs, MCP tools, enrichment triggers, RSS feeds, plus the original
+  ingestion set)

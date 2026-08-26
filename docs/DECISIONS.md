@@ -11,7 +11,8 @@ and dismissed or simply never thought of.
 
 ## 2026-08-26 — Synthesis lands; two bugs found by running the enrichers at full scale
 
-`corpus_synthesize` completes the four capabilities. Also: the full-corpus speaker and
+`corpus_synthesize` completes the third capability (filter-then-synthesize) and the
+MCP surface with it. Also: the full-corpus speaker and
 restoration passes each surfaced a bug that only appears at scale, and one of them
 would have quietly damaged retrieval.
 
