@@ -1,8 +1,9 @@
 # research-corpus dashboard
 
-Local ingestion dashboard: live progress for a running channel backfill, the seed
-table, manual channel/video add, and folder-watch configuration. Talks to the
-FastAPI backend in `src/corpus/web/` (this project's Python side) over HTTP + SSE.
+Local dashboard over the whole corpus: search and provenance, analytics, coverage,
+eval history, the MCP tool catalogue, enrichment triggers, and the original
+ingestion controls. Talks to the FastAPI backend in `src/corpus/web/` (this
+project's Python side) over HTTP + SSE.
 
 Built on [`@bastiangrubbe/ui-kit`](https://github.com/bastiangrubbe-ship-it/ui-kit) —
 `ProgressBar` and `StatTile` are components from there, not local to this app.
@@ -26,6 +27,39 @@ ports are hardcoded on both sides (CORS in `corpus/web/app.py`, `server.port` in
 network-reachable.
 
 ## What it does
+
+Twelve panels. `App.tsx` is a shell; each panel is its own component under
+`src/components/`, sharing one `App.module.css`.
+
+### Reading the corpus
+
+- **Search** — the full hybrid stack: lexical + document-dense + chunk-dense, RRF-fused
+  and reranked. Rows expand to show provenance, and `document_id` is copyable because
+  the restore panel takes one.
+- **Coverage** — how well the corpus covers a topic (none/thin/partial/good) and what
+  would improve it. It always reports how much of the corpus is actually indexed;
+  read that number before believing a low grade.
+- **Analytics** — velocity, emergence, saturation, drift, diffusion. No embeddings and
+  no LLM behind these, so they are the cheapest answers here.
+- **Eval history** — past runs, per-lane precision/recall, and run-vs-run diffs. Note
+  that the query set is *not* the build plan's specification; `src/corpus/eval/queries.yaml`
+  explains what that means before you read a score as a passing grade.
+- **MCP tools** — a catalogue and tester for the four MCP tools. A catalogue, not a
+  monitor: the MCP server is a stdio subprocess per client, not a daemon, so there is
+  no running process to watch.
+
+### Changing the corpus
+
+- **Enrichment** — triggers entity backfill, speaker attribution, and transcript
+  restoration. These are unbounded by design, matching what the CLI already allows: a
+  full-corpus backfill is one click and spends real subscription quota. Re-running is
+  idempotent, which is why nothing here asks you to confirm.
+- **RSS feeds** — preview a feed, then add and ingest. The preview step is load-bearing:
+  `feedparser` returns zero entries for a dead or mistyped URL rather than raising, so
+  without it a broken feed adds cleanly and then reports "0 fetched", which looks
+  exactly like a feed with nothing new.
+
+### Ingestion (the original set)
 
 - **Run a channel** — starts an ingestion run against one seed-table entry, streams
   live progress (discovering → fetching → fetched/skipped/failed → done) over SSE.
