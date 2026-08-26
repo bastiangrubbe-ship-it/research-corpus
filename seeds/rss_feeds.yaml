@@ -1,0 +1,28 @@
+# RSS feed seed table — the reviewed, git-tracked source of truth for RSS sources.
+#
+# Exists for the same reason youtube_channels.yaml does: a dashboard action that
+# wrote straight to the `source` table would create a second, invisible channel of
+# truth with no diff history and no review step (see src/corpus/web/seeds.py's own
+# docstring). One rule for how a source enters this corpus, regardless of kind —
+# which matters more as source kinds multiply; `SourceKind` already anticipates
+# arxiv and web.
+#
+# Unlike YouTube channels, feeds carry `domain` and `authority_tier` from the moment
+# they're added rather than defaulting to "unknown" pending classification: an RSS
+# feed is added one at a time and deliberately, not bulk-imported from a
+# subscription list, so the person adding it already knows what it is.
+#
+# Fields:
+#   url             the feed URL — also the dedup key and the `source.external_id`
+#   title           human name, from the feed's own <title> at add time
+#   domain          see corpus.db.enums.Domain
+#   authority_tier  see corpus.db.enums.AuthorityTier
+#   added_at        when this row was appended (informational)
+
+feeds:
+  - url: https://hnrss.org/frontpage
+    title: 'Hacker News: Front Page'
+    domain: general
+    authority_tier: unknown
+    added_at: '2026-08-25'
+
