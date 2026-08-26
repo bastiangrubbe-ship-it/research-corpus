@@ -27,6 +27,7 @@ from corpus.web.rss import router as rss_router
 from corpus.web.runs import manager
 from corpus.web.search import router as search_router
 from corpus.web.seeds import SeedInputError, append_seed, load_all_seeds, resolve_input
+from corpus.web.synthesis import router as synthesis_router
 from corpus.web.watch import watcher
 
 app = FastAPI(title="research-corpus dashboard")
@@ -43,6 +44,7 @@ app.add_middleware(
 # router modules (see docs/DECISIONS.md) — the five routes below predate that and
 # stay inline rather than being churned for symmetry.
 app.include_router(search_router)
+app.include_router(synthesis_router)
 app.include_router(analytics_router)
 app.include_router(coverage_router)
 app.include_router(eval_router)

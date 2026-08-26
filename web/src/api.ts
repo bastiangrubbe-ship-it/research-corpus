@@ -619,3 +619,87 @@ export async function fetchCredits(): Promise<CreditSummary> {
   if (!res.ok) throw new Error(`GET /api/credits failed: ${res.status}`);
   return res.json();
 }
+
+// --- Synthesis -------------------------------------------------------------
+//
+// Two calls on purpose. `plan` prices a filter without spending anything; `run`
+// is one LLM call per matched document and takes minutes. The panel is expected
+// to plan freely and run only on an explicit click.
+
+export interface SynthesisPlan {
+  dry_run: true;
+  matched_documents: number;
+  documents_to_read: number;
+  escalated_documents: number;
+  total_chars: number;
+  capped: boolean;
+  dropped_by_cap: number;
+  llm_calls: number;
+}
+
+export interface SynthesisCitation {
+  marker: number;
+  document_id: string;
+  title: string | null;
+  url: string | null;
+  published_at: string | null;
+  source_title: string | null;
+  claim: string;
+  quote: string;
+}
+
+export interface SynthesisReport {
+  question: string;
+  answer: string;
+  citations: SynthesisCitation[];
+  matched_documents: number;
+  documents_read: number;
+  documents_addressing: number;
+  documents_failed: number;
+  capped: boolean;
+  dropped_by_cap: number;
+  invalid_markers: number[];
+  prompt_version: string;
+}
+
+export interface SynthesisFilter {
+  question?: string;
+  query?: string;
+  domain?: string;
+  entityName?: string;
+  since?: string;
+  until?: string;
+  maxDocuments?: number;
+}
+
+function synthesisParams(args: SynthesisFilter): URLSearchParams {
+  const params = new URLSearchParams();
+  if (args.question) params.set("question", args.question);
+  if (args.query) params.set("query", args.query);
+  if (args.domain) params.set("domain", args.domain);
+  if (args.entityName) params.set("entity_name", args.entityName);
+  if (args.since) params.set("since", args.since);
+  if (args.until) params.set("until", args.until);
+  if (args.maxDocuments !== undefined) params.set("max_documents", String(args.maxDocuments));
+  return params;
+}
+
+export async function fetchSynthesisPlan(args: SynthesisFilter): Promise<SynthesisPlan> {
+  const res = await fetch(`${API_BASE}/api/synthesis/plan?${synthesisParams(args)}`);
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.detail ?? `synthesis plan failed: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function runSynthesis(args: SynthesisFilter): Promise<SynthesisReport> {
+  const res = await fetch(`${API_BASE}/api/synthesis/run?${synthesisParams(args)}`, {
+    method: "POST",
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.detail ?? `synthesis failed: ${res.status}`);
+  }
+  return res.json();
+}

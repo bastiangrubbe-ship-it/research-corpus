@@ -22,6 +22,7 @@ import EvalHistoryPanel from "./components/EvalHistoryPanel";
 import McpPanel from "./components/McpPanel";
 import RssPanel from "./components/RssPanel";
 import SearchPanel from "./components/SearchPanel";
+import SynthesisPanel from "./components/SynthesisPanel";
 
 interface RunState {
   runId: string;
@@ -192,6 +193,7 @@ export default function App() {
       <h1 className={styles.title}>research-corpus — dashboard</h1>
 
       <SearchPanel />
+      <SynthesisPanel />
       <CoveragePanel />
       <AnalyticsPanel />
       <EvalHistoryPanel />
