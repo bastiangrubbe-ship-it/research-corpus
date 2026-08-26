@@ -23,6 +23,7 @@ TENANT_TABLES = [
     "transcript_version",
     "chunk",
     "chunk_embedding",
+    "entity_extraction_run",
 ]
 
 

@@ -110,6 +110,14 @@ def seeded(migrate_engine: Engine, tenants: dict[str, uuid.UUID]) -> Iterator[di
                 ),
                 {"c": chunk, "t": tid, "emb": "[" + ",".join(["0.1"] * 768) + "]"},
             )
+            conn.execute(
+                text(
+                    "INSERT INTO entity_extraction_run "
+                    "(id, tenant_id, document_id, extractor_version, mention_count) "
+                    "VALUES (:id, :t, :doc, 'test-version', 0)"
+                ),
+                {"id": uuid.uuid4(), "t": tid, "doc": doc},
+            )
             ids[key] = {"source": src, "document": doc, "chunk": chunk, "transcript": tv}
     yield ids
     with migrate_engine.begin() as conn:

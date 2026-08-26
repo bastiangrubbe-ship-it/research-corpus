@@ -32,18 +32,20 @@ import json
 import re
 import subprocess
 import uuid
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Iterator, Sequence
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import structlog
 from pydantic import BaseModel, Field, ValidationError
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from corpus.config import get_settings
 from corpus.db.enums import EntityKind
-from corpus.db.models import Entity, EntityMention, Segment, TranscriptVersion
+from corpus.db.models import Entity, EntityExtractionRun, EntityMention, Segment, TranscriptVersion
+from corpus.db.session import tenant_session
 
 log = structlog.get_logger(__name__)
 
@@ -110,10 +112,20 @@ def extractor_version(model: str = "") -> str:
 
 
 def _strip_markdown_fence(text: str) -> str:
+    """Strips a wrapping ``` fence, extracting only what's inside it.
+
+    Deliberately matches the *first* fenced block rather than anchoring the closing
+    fence to end-of-string: despite the prompt asking for bare JSON, Claude sometimes
+    closes the fence and then adds explanatory prose after it (e.g. "```\\n\\nThis
+    transcript contains no identifiable named entities..."). An end-anchored strip
+    leaves that trailing prose attached to the JSON and breaks parsing entirely,
+    discarding an otherwise-correct `{"entities": []}` result as a schema failure.
+    """
     text = text.strip()
     if text.startswith("```"):
-        text = re.sub(r"^```[a-zA-Z]*\n?", "", text)
-        text = re.sub(r"\n?```$", "", text)
+        match = re.match(r"^```[a-zA-Z]*\n?(.*?)\n?```", text, re.DOTALL)
+        if match:
+            return match.group(1).strip()
     return text.strip()
 
 
@@ -148,9 +160,38 @@ def _run_claude_code(transcript_text: str, *, model: str, timeout_s: float) -> s
         raise ClaudeCodeCallError("claude CLI not found on PATH") from exc
 
     if proc.returncode != 0:
-        raise ClaudeCodeCallError(f"claude CLI exited {proc.returncode}: {proc.stderr[:500]}")
+        # The CLI reports its own failures in the stdout JSON envelope's `result`
+        # field, not on stderr — a failed call routinely has empty stderr. Reporting
+        # only stderr produced "claude CLI exited 1: " with nothing after the colon,
+        # which is how a context-limit failure went undiagnosed for an entire
+        # session. Prefer stderr when it has content, fall back to stdout.
+        detail = proc.stderr.strip() or proc.stdout.strip()
+        raise ClaudeCodeCallError(f"claude CLI exited {proc.returncode}: {detail[:500]}")
 
     return proc.stdout
+
+
+#: Above this transcript size, extract with `LARGE_DOCUMENT_MODEL` instead.
+#:
+#: The configured model is `haiku` (200k tokens, ~800k characters). Exactly one
+#: transcript in this corpus is 1,023,757 characters (~256k tokens) and simply does
+#: not fit — it failed every backfill attempt, and docs/DECISIONS.md recorded it as a
+#: permanent limit on the grounds that chunked multi-call extraction wasn't worth
+#: building for one document.
+#:
+#: That reasoning was sound and the conclusion was still wrong: the fix isn't
+#: chunking, it's a model with a bigger context. Opus takes 1M tokens, which fits
+#: that document with room to spare — verified directly by judging the same document
+#: end to end (corpus.eval.judge uses the identical escalation).
+#:
+#: 200,000 characters covers 25 documents (0.76%), so the escalation stays bounded
+#: while removing the "permanently un-extractable" category entirely.
+LARGE_DOCUMENT_CHARS = 200_000
+LARGE_DOCUMENT_MODEL = "opus"
+
+#: Escalated documents are both larger and on a slower model. Measured: the single
+#: 1M-character transcript took 230s of API time against a 240s default.
+LARGE_DOCUMENT_TIMEOUT_MULTIPLIER = 4
 
 
 def extract_entities(
@@ -159,10 +200,39 @@ def extract_entities(
     model: str | None = None,
     timeout_s: float | None = None,
 ) -> DocumentEntities:
-    """One call per document. Not per chunk — see module docstring."""
+    """One call per document. Not per chunk — see module docstring.
+
+    Model escalates by size when `model` isn't given explicitly: the configured
+    default for the 99%+ of documents that fit it, Opus for the handful that don't.
+    """
     settings = get_settings()
-    model = model or settings.entity_extraction_model
-    timeout_s = timeout_s or settings.entity_extraction_timeout_s
+    if model is None:
+        escalated = len(text) > LARGE_DOCUMENT_CHARS
+        model = LARGE_DOCUMENT_MODEL if escalated else settings.entity_extraction_model
+        if escalated:
+            # Logged rather than folded into `extractor_version`, deliberately.
+            # `find_unenriched_documents` and `EntityExtractionRun` both key off that
+            # version string, so varying it per document by size would make escalated
+            # documents look permanently unenriched and re-queue them on every run —
+            # the exact failure this table was added to fix. The prompt, schema and
+            # prompt version are identical on both paths; only context capacity
+            # differs, so one version string is honest. This log line is how the
+            # escalation stays visible.
+            log.info(
+                "entity_extraction_escalated",
+                chars=len(text),
+                model=model,
+                reason="exceeds configured model's context",
+            )
+    if timeout_s is None:
+        # An escalated document is ~250k tokens; the API call alone measured 230s
+        # against a configured 240s ceiling, so the default is not merely tight for
+        # this path, it is below the observed cost. Scaled rather than raised
+        # globally: the 99% of documents that stay on the small model should keep a
+        # short timeout, because for them a long wait means something is wrong.
+        timeout_s = settings.entity_extraction_timeout_s * (
+            LARGE_DOCUMENT_TIMEOUT_MULTIPLIER if len(text) > LARGE_DOCUMENT_CHARS else 1
+        )
 
     stdout = _run_claude_code(text, model=model, timeout_s=timeout_s)
 
@@ -293,6 +363,38 @@ def persist_entities(
     session.commit()
 
 
+def mark_extraction_run(
+    session: Session,
+    *,
+    tenant_id: uuid.UUID,
+    document_id: uuid.UUID,
+    extractor_version_str: str,
+    mention_count: int,
+) -> None:
+    """Records that `document_id` was checked at `extractor_version_str`, regardless
+    of whether any entities were found. This is the completion marker
+    `find_unenriched_documents` filters against — see `EntityExtractionRun`'s
+    docstring for why `entity_mention` alone can't serve this purpose. Upserts so
+    re-running an already-processed document (e.g. a manual re-check) updates the
+    count and timestamp rather than erroring on the unique constraint.
+    """
+    stmt = (
+        pg_insert(EntityExtractionRun)
+        .values(
+            tenant_id=tenant_id,
+            document_id=document_id,
+            extractor_version=extractor_version_str,
+            mention_count=mention_count,
+        )
+        .on_conflict_do_update(
+            index_elements=[EntityExtractionRun.document_id, EntityExtractionRun.extractor_version],
+            set_={"mention_count": mention_count, "processed_at": func.now()},
+        )
+    )
+    session.execute(stmt)
+    session.commit()
+
+
 def reconstruct_transcript_text(session: Session, transcript_version_id: uuid.UUID) -> str:
     """Segments in idx order, joined — the plain text Claude Code sees."""
     segments = (
@@ -333,9 +435,9 @@ def find_unenriched_documents(
         .order_by(TranscriptVersion.document_id, TranscriptVersion.created_at.desc())
         .subquery()
     )
-    already_enriched = select(EntityMention.document_id).where(
-        EntityMention.tenant_id == tenant_id,
-        EntityMention.extractor_version == extractor_version_str,
+    already_enriched = select(EntityExtractionRun.document_id).where(
+        EntityExtractionRun.tenant_id == tenant_id,
+        EntityExtractionRun.extractor_version == extractor_version_str,
     )
     stmt = select(latest_versions.c.document_id, latest_versions.c.transcript_version_id).where(
         latest_versions.c.document_id.notin_(already_enriched)
@@ -354,12 +456,19 @@ def enrich_document(
     model: str | None = None,
 ) -> int:
     """Extract + persist entities for one document. Returns the mention count."""
+    version = extractor_version(model or get_settings().entity_extraction_model)
     text = reconstruct_transcript_text(session, transcript_version_id)
     if not text.strip():
+        mark_extraction_run(
+            session,
+            tenant_id=tenant_id,
+            document_id=document_id,
+            extractor_version_str=version,
+            mention_count=0,
+        )
         return 0
 
     doc_entities = extract_entities(text, model=model)
-    version = extractor_version(model or get_settings().entity_extraction_model)
     mention_rows = find_mentions_in_text(
         document_id=document_id, text=text, entities=doc_entities.entities
     )
@@ -371,4 +480,88 @@ def enrich_document(
         mention_rows=mention_rows,
         extractor_version_str=version,
     )
+    mark_extraction_run(
+        session,
+        tenant_id=tenant_id,
+        document_id=document_id,
+        extractor_version_str=version,
+        mention_count=len(mention_rows),
+    )
     return len(mention_rows)
+
+
+def enrich_documents_concurrent(
+    pending: Sequence[tuple[uuid.UUID, uuid.UUID]],
+    *,
+    tenant_id: uuid.UUID,
+    model: str | None = None,
+    concurrency: int = 1,
+) -> Iterator[tuple[uuid.UUID, int | None, Exception | None]]:
+    """Concurrent version of `enrich_document` over a batch of (document_id,
+    transcript_version_id) pairs. Yields (document_id, mention_count, error) as each
+    document finishes — mention_count is None and error is set on failure.
+
+    The slow part (`extract_entities`, the `claude -p` call) runs in a thread pool and
+    touches no database; only the fast span-finding + persist step opens a
+    `tenant_session`, one per document, on the thread that just finished extracting —
+    so `concurrency` workers never hold that many DB connections open at once, only
+    ever as many as are between "Claude answered" and "wrote the rows". Measured safe
+    up to 25 concurrent `claude -p` calls with zero errors and near-linear wall-clock
+    speedup (see docs/DECISIONS.md).
+    """
+    # `version` is always the *configured* extractor, even when an individual
+    # document escalates to a larger model — see the note in `extract_entities`.
+    version = extractor_version(model or get_settings().entity_extraction_model)
+
+    def _extract_one(document_id, transcript_version_id):
+        with tenant_session(tenant_id) as session:
+            text = reconstruct_transcript_text(session, transcript_version_id)
+        if not text.strip():
+            return document_id, text, None, None
+        try:
+            # model=None here is meaningful: it lets extract_entities pick by
+            # document size. Resolving it to the configured default first would
+            # silently disable escalation for oversized transcripts.
+            doc_entities = extract_entities(text, model=model)
+            return document_id, text, doc_entities, None
+        except (ClaudeCodeCallError, ExtractionError) as exc:
+            return document_id, text, None, exc
+
+    with ThreadPoolExecutor(max_workers=concurrency) as pool:
+        futures = [pool.submit(_extract_one, doc_id, tv_id) for doc_id, tv_id in pending]
+        for future in as_completed(futures):
+            document_id, text, doc_entities, error = future.result()
+            if error is not None:
+                yield document_id, None, error
+                continue
+            if doc_entities is None:
+                with tenant_session(tenant_id) as session:
+                    mark_extraction_run(
+                        session,
+                        tenant_id=tenant_id,
+                        document_id=document_id,
+                        extractor_version_str=version,
+                        mention_count=0,
+                    )
+                yield document_id, 0, None
+                continue
+            mention_rows = find_mentions_in_text(
+                document_id=document_id, text=text, entities=doc_entities.entities
+            )
+            with tenant_session(tenant_id) as session:
+                persist_entities(
+                    session,
+                    tenant_id=tenant_id,
+                    document_id=document_id,
+                    entities=doc_entities.entities,
+                    mention_rows=mention_rows,
+                    extractor_version_str=version,
+                )
+                mark_extraction_run(
+                    session,
+                    tenant_id=tenant_id,
+                    document_id=document_id,
+                    extractor_version_str=version,
+                    mention_count=len(mention_rows),
+                )
+            yield document_id, len(mention_rows), None

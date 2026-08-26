@@ -362,6 +362,31 @@ class EntityMention(Base, TenantScoped):
     extractor_version: Mapped[str | None] = mapped_column(String(128))
 
 
+class EntityExtractionRun(Base, TenantScoped):
+    """Marks a document as checked for entities at a given extractor_version,
+    independent of how many (if any) were found.
+
+    `entity_mention` alone can't answer "has this document been processed" — a
+    document with zero real entities produces zero mention rows, which is
+    indistinguishable from "never attempted" and would otherwise be re-queued by
+    `find_unenriched_documents` forever, once per scheduled run, forever (see
+    docs/DECISIONS.md). This table exists purely to make that distinction explicit.
+    """
+
+    __tablename__ = "entity_extraction_run"
+    __table_args__ = (
+        UniqueConstraint("document_id", "extractor_version", name="uq_extraction_run_doc_version"),
+    )
+
+    id: Mapped[uuid.UUID] = _pk()
+    document_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("document.id", ondelete="CASCADE"), index=True
+    )
+    extractor_version: Mapped[str] = mapped_column(String(128), nullable=False)
+    mention_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    processed_at: Mapped[dt.datetime] = _now()
+
+
 # ---------------------------------------------------------------------------
 # operations
 # ---------------------------------------------------------------------------
