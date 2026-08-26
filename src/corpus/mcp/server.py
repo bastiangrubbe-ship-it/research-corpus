@@ -101,6 +101,54 @@ def corpus_coverage(query: str, domain: str | None = None) -> dict:
 
 
 @server.tool()
+def corpus_synthesize(
+    question: str,
+    query: str | None = None,
+    domain: str | None = None,
+    entity_name: str | None = None,
+    since: str | None = None,
+    until: str | None = None,
+    max_documents: int = corpus_tools.DEFAULT_SYNTHESIS_MAX_DOCUMENTS,
+    dry_run: bool = False,
+) -> dict:
+    """Read every document matching a filter and answer `question` from all of them,
+    with citations. Use this instead of corpus_search when the question is about a
+    body of material rather than a passage in it — "how has the argument for X
+    changed", "what do these sources collectively say about Y", "where do they
+    disagree". corpus_search ranks and returns its best few; this reads the whole
+    matched set, so nothing is dropped unread.
+
+    Filter with any of `query` (full-text over title/description), `domain`,
+    `entity_name`, `since`/`until` (ISO dates). At least one is required. The filter
+    is a set, not a ranking: every document matching it is read in full.
+
+    This costs one LLM call per matched document and runs for minutes, unlike every
+    other tool here. Call with `dry_run=true` first to see how many documents match
+    and how many calls that means — it spends nothing. `max_documents` bounds a run;
+    a bounded run reports `capped` and `dropped_by_cap` so a partial read is never
+    presented as a complete one.
+
+    The result carries `matched_documents` and `documents_read` always, plus per-claim
+    citations with document_id, title, url and date. `documents_addressing` is how
+    many of the documents read actually bore on the question — a much smaller number
+    than `documents_read` is normal and is information, not a failure.
+    """
+    with tenant_session(_TENANT_ID) as session:
+        return corpus_tools.corpus_synthesize(
+            session,
+            tenant_id=_TENANT_ID,
+            question=question,
+            query=query,
+            domain=domain,
+            entity_name=entity_name,
+            since=since,
+            until=until,
+            max_documents=max_documents,
+            dry_run=dry_run,
+        )
+
+
+@server.tool()
 def corpus_provenance(document_id: str) -> dict:
     """Full provenance for one document (from a corpus_search result's document_id):
     source, authority tier, domain, publication date and how precisely it's known,

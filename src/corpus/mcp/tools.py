@@ -3,10 +3,10 @@ lanes (build plan, step 9): `corpus_search` is the hybrid retrieval pipeline end
 end, `corpus_analytics` is the whole step-5 analytics surface behind one selector
 argument, `corpus_provenance` answers "where did this come from and how sure are we."
 
-`corpus_synthesize` (the plan's fourth tool — a SQL/lexical-filtered set summarized
-into prose with citations) is deliberately absent. It needs `synthesis/mapreduce.py`,
-which doesn't exist yet — not stubbed in half-working, left as real, visible future
-work (see docs/DECISIONS.md).
+`corpus_synthesize` is the plan's fourth tool — a SQL/lexical-filtered *set* read in
+full and reduced to prose with citations. It is the only tool here that spends real
+quota per call (one LLM call per matched document), and the only one whose argument
+choices carry a cost the caller should see first; `dry_run` exists for exactly that.
 
 Tenant resolution never happens here. Every function takes `tenant_id` as a plain
 argument supplied by `server.py`, which resolves it once from server config at
@@ -310,6 +310,91 @@ def corpus_coverage(
     payload["date_earliest"] = report.date_earliest.isoformat() if report.date_earliest else None
     payload["date_latest"] = report.date_latest.isoformat() if report.date_latest else None
     return payload
+
+
+#: A synthesis run costs one LLM call per matched document, so an unbounded filter on
+#: this corpus is a four-figure number of calls made while someone waits. This is the
+#: default ceiling for the MCP tool specifically — the Python API takes
+#: `max_documents=None` and will genuinely read everything, which is right for a
+#: deliberate batch job and wrong for a tool an agent can call on a whim.
+#:
+#: The cap is never silent: `dry_run` reports the true match count before spending
+#: anything, and a capped run says so in its result.
+DEFAULT_SYNTHESIS_MAX_DOCUMENTS = 60
+
+
+def corpus_synthesize(
+    session: Session,
+    *,
+    tenant_id: uuid.UUID,
+    question: str,
+    query: str | None = None,
+    domain: str | None = None,
+    entity_name: str | None = None,
+    since: str | None = None,
+    until: str | None = None,
+    max_documents: int = DEFAULT_SYNTHESIS_MAX_DOCUMENTS,
+    dry_run: bool = False,
+) -> dict:
+    """Read every document matching a filter and synthesize an answer with citations.
+
+    This is not search. Search ranks and returns the best few; this reads the whole
+    matched set, which is what questions like "how has X been argued over time" need —
+    the fortieth document counts as much as the first, and a ranker would drop it
+    unread.
+
+    `dry_run` returns the plan only: how many documents match, how many would be read,
+    how many escalate to a larger model. Nothing is spent.
+    """
+    from corpus.synthesis.mapreduce import FilterSpec, plan_synthesis, synthesize
+
+    if not question.strip():
+        raise ToolError("question is required — this tool answers a question, it does not browse")
+    if not any([query, domain, entity_name, since, until]):
+        raise ToolError(
+            "at least one filter (query, domain, entity_name, since, until) is required; "
+            "an unfiltered synthesis would read the entire corpus"
+        )
+
+    def _date(value: str | None, label: str) -> dt.date | None:
+        if value is None:
+            return None
+        try:
+            return dt.date.fromisoformat(value)
+        except ValueError as exc:
+            raise ToolError(f"{label} must be an ISO date (YYYY-MM-DD), got {value!r}") from exc
+
+    spec = FilterSpec(
+        query=query,
+        domain=_parse_domain(domain),
+        entity_name=entity_name,
+        since=_date(since, "since"),
+        until=_date(until, "until"),
+    )
+
+    if dry_run:
+        plan = plan_synthesis(
+            session, tenant_id=tenant_id, spec=spec, max_documents=max_documents
+        )
+        return {
+            "dry_run": True,
+            "matched_documents": plan.matched_documents,
+            "documents_to_read": plan.documents_to_read,
+            "escalated_documents": plan.escalated_documents,
+            "total_chars": plan.total_chars,
+            "capped": plan.capped,
+            "dropped_by_cap": plan.dropped_by_cap,
+            "llm_calls": plan.documents_to_read,
+        }
+
+    report = synthesize(
+        session,
+        tenant_id=tenant_id,
+        question=question,
+        spec=spec,
+        max_documents=max_documents,
+    )
+    return report.to_dict()
 
 
 def corpus_provenance(session: Session, *, tenant_id: uuid.UUID, document_id: str) -> dict:
