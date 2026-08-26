@@ -146,6 +146,14 @@ def _realign_to_segments(
     If the word counts ever fail to line up, fall back to one segment spanning the
     document rather than distributing text against offsets it does not match: losing
     timestamps is recoverable and obvious, misattributed timestamps are neither.
+
+    The known cause of a mismatch is `<unk>`: where the transcript holds a character
+    outside the model's vocabulary, the tokenizer emits an unknown token and
+    reconstruction splits the word around it, so `Roo<unk>3` comes back as
+    `Roo<unk> 3` and the count grows. Measured over the full corpus this fired on 4 of
+    3,269 versions (0.12%). Left to the fallback rather than fixed with a
+    sequence-alignment pass: those documents keep their timestamps in the raw parent
+    version, which is never mutated, so the loss is confined to the derived copy.
     """
     restored_words = restored_text.split()
     original_counts = [len(row.text.split()) for row in segment_rows]

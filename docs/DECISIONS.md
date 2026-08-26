@@ -92,7 +92,22 @@ precisely where punctuation is hardest.
 
 On a word-count mismatch it falls back to one segment rather than distributing text
 over offsets it no longer matches. Losing timestamps is recoverable and obvious;
-misattributing them is neither. Over 3,269 versions this fired once.
+misattributing them is neither.
+
+**Full-corpus result:** 3,275 versions restored, 18.4M words, 9.3h, zero failures.
+3,271 (99.88%) kept their parent's segment structure with zero offset drift; 4 (0.12%)
+fell back. The cause of all four is `<unk>` — where the transcript holds a character
+outside the model's vocabulary the tokenizer emits an unknown token and reconstruction
+splits the word around it, so `Roo<unk>3` returns as `Roo<unk> 3` and the count grows.
+Left to the fallback rather than fixed with sequence alignment: those documents keep
+their timestamps in the raw parent, which is never mutated.
+
+Two further versions were found collapsed that the run had not counted — legacy output
+of the pre-fix code, from before this session. Re-restoring recovered both, which is
+also the confirmation that the fix does what it claims: the two written by the old code
+came back with full structure, the four with genuine `<unk>` mismatches fell back
+again. Worth noting as a pattern — a fix does not retroactively repair rows the broken
+version already wrote, and nothing about those rows announces itself.
 
 This is the third instance of the standing caution: **the damage a partial or
 malformed index does is that it still looks decisive.** A zeroed timestamp, a 3.9%
