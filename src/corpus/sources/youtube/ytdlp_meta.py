@@ -12,6 +12,9 @@ from __future__ import annotations
 import datetime as dt
 import json
 import subprocess
+import time
+
+import structlog
 
 from corpus.db.enums import DatePrecision
 from corpus.sources.base import (
@@ -20,6 +23,8 @@ from corpus.sources.base import (
     RawResponse,
     TranscriptUnavailable,
 )
+
+log = structlog.get_logger(__name__)
 
 PROVIDER = "yt-dlp"
 
@@ -74,6 +79,96 @@ class YtDlpMetadataClient:
             raise ProviderBlocked(f"yt-dlp discovery failed for {handle}: {proc.stderr[:200]}")
         ids = [line.strip() for line in proc.stdout.splitlines() if line.strip()]
         return ids[:limit] if limit else ids
+
+    def discover_channel_videos_detailed(
+        self, handle: str, *, limit: int | None = None
+    ) -> list[dict]:
+        """Same channel listing as `discover_channel_videos`, but `--dump-single-json`
+        instead of `--print %(id)s` — the channel page's flat-playlist listing
+        already carries `title`/`duration`/`view_count` per video for free, no
+        second per-video call. `timestamp` is always null here (confirmed
+        empirically, 2026-08-24) — an exact date still needs a real per-video
+        metadata call (`fetch_metadata`) or Supadata's metadata batch; this is
+        for callers happy to trade that away for zero extra cost/time (see
+        `YouTubeAdapter.fetch_batch`, `metadata_source="skip"`).
+
+        Returns dicts with `id`, `title`, `duration`, `view_count` — one entry
+        per video, same order as the channel's own listing.
+        """
+        url = f"https://www.youtube.com/{handle.lstrip('@')}/videos"
+        if handle.startswith("@"):
+            url = f"https://www.youtube.com/{handle}/videos"
+        args = [
+            "yt-dlp",
+            "--flat-playlist",
+            "--dump-single-json",
+            "--no-warnings",
+            "--socket-timeout",
+            str(self._socket_timeout),
+        ]
+        if limit is not None:
+            args += ["--playlist-end", str(limit)]
+        args.append(url)
+
+        proc = _run(args, timeout=self._process_timeout)
+        if proc.returncode != 0:
+            raise ProviderBlocked(f"yt-dlp discovery failed for {handle}: {proc.stderr[:200]}")
+        payload = json.loads(proc.stdout)
+        entries = payload.get("entries") or []
+        return [
+            {
+                "id": e.get("id"),
+                "title": e.get("title"),
+                "duration": e.get("duration"),
+                "view_count": e.get("view_count"),
+            }
+            for e in entries
+        ]
+
+    def discover_since(
+        self,
+        handle: str,
+        *,
+        since: dt.datetime,
+        candidate_limit: int = 60,
+        delay_s: float = 0.6,
+    ) -> list[str]:
+        """Video ids published on or after `since`.
+
+        The channel listing itself carries no date — only an id, in the channel's
+        default (newest-first) order — so this walks the most recent candidates one
+        at a time, checking each one's actual publish date via a free per-video
+        metadata call, and stops at the first confirmed-older video: everything
+        after it in a newest-first listing is older too. Sequential and paced
+        (`delay_s` between calls) on purpose — an earlier version fired these
+        concurrently (5 at once) and tripped YouTube's "sign in to confirm you're
+        not a bot" wall for the whole run; the per-video metadata endpoint this
+        hits is evidently far more bot-detection-sensitive than the flat-playlist
+        listing endpoint the rest of this module's concurrency is fine with (see
+        docs/DECISIONS.md). A video whose metadata fetch fails is skipped rather
+        than treated as a stop signal, so a transient failure doesn't truncate the
+        walk early. `candidate_limit=60` is a safety cap, not the normal path — most
+        channels stop long before it on the date check.
+        """
+        candidate_ids = self.discover_channel_videos(handle, limit=candidate_limit)
+        matched: list[str] = []
+        for vid in candidate_ids:
+            published_at = self._safe_fetch_published_at(vid)
+            time.sleep(delay_s)
+            if published_at is None:
+                continue
+            if published_at < since:
+                break
+            matched.append(vid)
+        return matched
+
+    def _safe_fetch_published_at(self, video_id: str) -> dt.datetime | None:
+        try:
+            document, _raw = self.fetch_metadata(video_id)
+        except TranscriptUnavailable as exc:
+            log.warning("since_metadata_check_failed", video_id=video_id, error=str(exc))
+            return None
+        return document.published_at
 
     def fetch_metadata(self, video_id: str) -> tuple[NormalizedDocument, RawResponse]:
         url = f"https://www.youtube.com/watch?v={video_id}"

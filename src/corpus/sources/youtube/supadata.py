@@ -146,6 +146,18 @@ class SupadataClient:
         self._raise_for_status(response)
         return response
 
+    @retry(
+        retry=retry_if_exception_type((httpx.TransportError, httpx.HTTPStatusError)),
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=2, max=20),
+        reraise=True,
+    )
+    def _post(self, path: str, json_body: dict[str, Any]) -> httpx.Response:
+        self._limiter.acquire()
+        response = self._client.post(path, json=json_body)
+        self._raise_for_status(response)
+        return response
+
     @staticmethod
     def _raise_for_status(response: httpx.Response) -> None:
         code = response.status_code
@@ -172,10 +184,18 @@ class SupadataClient:
 
     # -- endpoints ---------------------------------------------------------
     def fetch_transcript(
-        self, video_id: str, *, lang: str = "en"
+        self, video_id: str, *, lang: str = "en", mode: str = "native"
     ) -> tuple[NormalizedTranscript, RawResponse]:
+        """`mode="native"` (the default here) refuses Supadata's own Whisper
+        fallback outright rather than silently paying its per-minute rate — see
+        docs/SUPADATA.md. A video with no YouTube-hosted captions at all then comes
+        back as TranscriptUnavailable instead of a generated transcript. This rules
+        out one of the two provenance gaps (confirms it isn't Supadata-Whisper) but
+        not the other (still can't tell YouTube's own auto-captions from a human
+        upload), so `is_auto_generated`/`provenance_confidence` are unchanged by it.
+        """
         self.ledger.reserve(1, endpoint="/youtube/transcript", external_id=video_id)
-        params = {"videoId": video_id, "lang": lang, "text": "false"}
+        params = {"videoId": video_id, "lang": lang, "text": "false", "mode": mode}
         response = self._get("/youtube/transcript", params)
         payload = response.json()
 
@@ -214,6 +234,143 @@ class SupadataClient:
             provenance_confidence=confidence,
         )
         return transcript, raw
+
+    def fetch_transcripts_batch(
+        self,
+        video_ids: list[str],
+        *,
+        lang: str = "en",
+        poll_interval: float = 1.5,
+        max_wait: float = 300.0,
+    ) -> tuple[dict[str, NormalizedTranscript], dict[str, str], RawResponse]:
+        """One batch job for every id in `video_ids`, polled to completion.
+
+        No `mode` here — confirmed (2026-08-24, see docs/SUPADATA.md) that the
+        batch endpoint silently ignores it, unlike the single-video endpoint above.
+        A garbage `mode` value returned 200 instead of the 400 the single endpoint
+        gives for a bad `lang`, which is what exposed this. Consequence, accepted
+        for the speed of server-side batching: a video with no existing captions is
+        billed at the 2-credits/minute `generate` rate instead of failing cheaply at
+        1 credit the way `mode="native"` would have on the single-video path.
+
+        Also loses even the weak 202-status Whisper hint `fetch_transcript` uses —
+        batch results carry no per-item status equivalent, so every transcript here
+        is `provenance_confidence=UNKNOWN`, never `INFERRED`.
+
+        Returns `(transcripts_by_id, error_codes_by_id, raw_response)` — one shared
+        `RawResponse` for the whole job (fine to write to bronze once per video: a
+        byte-identical duplicate write is a no-op, not an error — see
+        `BronzeStore.write`).
+
+        Reserves exactly `len(video_ids)` credits, not `1 + len(video_ids)`: the
+        documented "1 for the batch + 1 per video" pricing does not match reality
+        — confirmed empirically via /me's usedCredits before/after a real 2-video
+        batch call (2026-08-24): delta was 2, not 3. See docs/SUPADATA.md.
+        """
+        self.ledger.reserve(len(video_ids), endpoint="/youtube/transcript/batch", external_id=None)
+        request_body = {"videoIds": video_ids, "lang": lang}
+        final_payload, raw = self._run_batch_job(
+            "/youtube/transcript/batch",
+            request_body,
+            poll_interval=poll_interval,
+            max_wait=max_wait,
+        )
+
+        transcripts: dict[str, NormalizedTranscript] = {}
+        error_codes: dict[str, str] = {}
+        for item in final_payload.get("results", []):
+            vid = item.get("videoId")
+            transcript_data = item.get("transcript")
+            if transcript_data is None:
+                error_codes[vid] = item.get("errorCode", "unknown-error")
+                continue
+            transcripts[vid] = NormalizedTranscript(
+                provider=TranscriptProvider.SUPADATA,
+                lang=transcript_data.get("lang", lang),
+                segments=_to_segments(transcript_data.get("content")),
+                available_langs=tuple(transcript_data.get("availableLangs") or ()),
+                is_auto_generated=None,
+                provenance_confidence=ProvenanceConfidence.UNKNOWN,
+            )
+        return transcripts, error_codes, raw
+
+    def fetch_metadata_batch(
+        self,
+        video_ids: list[str],
+        *,
+        poll_interval: float = 1.5,
+        max_wait: float = 300.0,
+    ) -> tuple[dict[str, NormalizedDocument], dict[str, str], RawResponse]:
+        """One batch job for video metadata — the Supadata-only counterpart to
+        `fetch_transcripts_batch`, used when yt-dlp is being kept out of the fetch
+        path entirely for concurrency (see docs/DECISIONS.md, 2026-08-24).
+
+        Empirically confirmed (not documented) response shape: each result is
+        `{"videoId": ..., "video": {id, title, description, channel, tags,
+        thumbnail, uploadDate, viewCount, likeCount, duration,
+        transcriptLanguages}}`. `uploadDate` is a full ISO timestamp but always
+        shows midnight in both videos tested — real precision is date-only, not
+        yt-dlp's exact upload second, so this is recorded as
+        `DatePrecision.DATE`, never `EXACT`.
+
+        Costs 1 credit per video, per docs — metadata is not free here the way
+        yt-dlp's per-video metadata call is.
+        """
+        self.ledger.reserve(len(video_ids), endpoint="/youtube/video/batch", external_id=None)
+        request_body = {"videoIds": video_ids}
+        final_payload, raw = self._run_batch_job(
+            "/youtube/video/batch", request_body, poll_interval=poll_interval, max_wait=max_wait
+        )
+
+        documents: dict[str, NormalizedDocument] = {}
+        error_codes: dict[str, str] = {}
+        for item in final_payload.get("results", []):
+            vid = item.get("videoId")
+            video_data = item.get("video")
+            if video_data is None:
+                error_codes[vid] = item.get("errorCode", "unknown-error")
+                continue
+            documents[vid] = _to_document(vid, video_data)
+        return documents, error_codes, raw
+
+    def _run_batch_job(
+        self,
+        endpoint: str,
+        request_body: dict[str, Any],
+        *,
+        poll_interval: float,
+        max_wait: float,
+    ) -> tuple[dict[str, Any], RawResponse]:
+        """Submit + poll, shared by every /youtube/*/batch endpoint — they all
+        return {"jobId": ...} on submit and {"status", "results", ...} on poll.
+        """
+        submit = self._post(endpoint, request_body)
+        job_id = submit.json()["jobId"]
+
+        deadline = time.monotonic() + max_wait
+        final_payload: dict[str, Any] | None = None
+        poll: httpx.Response | None = None
+        while time.monotonic() < deadline:
+            time.sleep(poll_interval)
+            poll = self._get(f"/youtube/batch/{job_id}", {})
+            payload = poll.json()
+            if payload.get("status") in ("completed", "failed"):
+                final_payload = payload
+                break
+        if final_payload is None or poll is None:
+            raise ProviderBlocked(f"supadata batch {job_id} did not finish within {max_wait}s")
+
+        raw = RawResponse(
+            provider=PROVIDER,
+            endpoint=endpoint,
+            external_id=job_id,
+            fetched_at=_now(),
+            payload=final_payload,
+            http_status=poll.status_code,
+            headers=dict(poll.headers),
+            request_params=request_body,
+        )
+        return final_payload, raw
 
     def list_channel_videos(self, channel_ref: str, *, limit: int | None = None) -> list[str]:
         """Video ids for a channel. Costs 1 credit regardless of how many come back."""
@@ -266,7 +423,13 @@ def _to_segments(content: Any) -> list[NormalizedSegment]:
 
 
 def _to_document(video_id: str, payload: dict[str, Any]) -> NormalizedDocument:
-    """`uploadDate` is optional in the schema, hence the precision field."""
+    """`uploadDate` is optional in the schema, hence the precision field.
+
+    Precision is `DATE`, never `EXACT`: confirmed empirically (2026-08-24, see
+    docs/SUPADATA.md) that `uploadDate` is a full ISO timestamp but the time
+    component is always midnight in every video checked — real precision is
+    date-only, unlike yt-dlp's exact upload second.
+    """
     upload = payload.get("uploadDate")
     published_at: dt.datetime | None = None
     precision = DatePrecision.UNKNOWN
@@ -274,7 +437,7 @@ def _to_document(video_id: str, payload: dict[str, Any]) -> NormalizedDocument:
     if upload:
         try:
             published_at = dt.datetime.fromisoformat(str(upload).replace("Z", "+00:00"))
-            precision = DatePrecision.EXACT
+            precision = DatePrecision.DATE
             source = "api"
         except ValueError:
             precision = DatePrecision.UNKNOWN

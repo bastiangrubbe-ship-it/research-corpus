@@ -8,7 +8,7 @@ Plan: **30,000 credits/month.**
 
 ## Transcript
 
-`GET /youtube/transcript?url=|videoId=[&lang=&text=&chunkSize=]`
+`GET /youtube/transcript?url=|videoId=[&lang=&text=&chunkSize=&mode=]`
 
 ```json
 { "content": [ { "text": "...", "offset": 1234, "duration": 567, "lang": "en" } ],
@@ -17,7 +17,35 @@ Plan: **30,000 credits/month.**
 ```
 
 `offset` and `duration` are **milliseconds**. With `text=true`, `content` collapses to
-a plain string. Three top-level fields, and that is all.
+a plain string. Three top-level fields in the response, and that is all — `mode` is a
+request parameter, not something echoed back.
+
+### `mode` (2026-08-24, from `llms-full.txt` — absent from the OpenAPI JSON schema)
+
+`SupadataClient.fetch_transcript` (see `sources/youtube/supadata.py`) now sends
+`mode="native"` by default — chosen for cost, on request: it's a flat 1 credit
+regardless of video length, where the implicit `auto` default this pipeline used
+before risked the 2-credits/minute `generate` rate on any video without existing
+captions. Calls made before 2026-08-24 used whatever the unstated default was,
+presumably `auto`.
+
+| Value | Behavior | Price |
+|---|---|---|
+| `native` (used here) | Only fetch an existing transcript; **no** Whisper fallback | 1 credit |
+| `generate` | Always generate via AI (Whisper), even if a native one exists | 2 credits/minute |
+| `auto` (previous implicit default) | Native if available, silently falls back to `generate` otherwise | 1 or 2 credits/min, depending which happened |
+
+**What this does and does not fix.** `mode=native` failing tells you Supadata would
+have had to invoke its own Whisper fallback — closing *one* of the two provenance
+gaps this pipeline cares about. It does **not** close the other one: YouTube's own
+auto-generated captions are still a real, existing caption track, so they still
+return successfully under `mode=native`. Supadata's native/generate distinction is
+"did Supadata run Whisper," not "was this specific track human-authored vs
+YouTube-auto-generated" — that finer distinction is still `youtube-transcript-api`
+exclusively, via `is_generated`, regardless of `mode`. Worth using regardless: it
+upgrades some documents from `provenance_confidence='unknown'` to a real "confirmed
+not Supadata-Whisper" signal, at the cost of failing outright (rather than silently
+Whisper-generating) on videos with no YouTube-hosted captions at all.
 
 ## Metadata — a separate call
 
@@ -43,7 +71,16 @@ Poll `GET /youtube/batch/{jobId}` → `queued | active | completed | failed`.
 Failed videos appear in `results` with an `errorCode` (e.g. `transcript-unavailable`)
 rather than failing the job.
 
-**Credits: 1 for the batch + 1 per video.** A 10-video batch costs 11.
+**Credits: documented as "1 for the batch + 1 per video" — confirmed wrong.**
+Measured directly (2026-08-24) via `/me`'s `usedCredits` before/after a real
+2-video batch call: delta was 2, not 3. Actual cost is exactly 1 credit per
+video, no separate batch-submission fee. Same result for `/youtube/video/batch`
+(metadata): a 3-video call cost exactly 3. `/me` (`GET /me` → `organizationId,
+plan, maxCredits, usedCredits`) is a real, verifiable spend signal — contrary to
+the "Supadata reports no consumption back to the caller" note above, which is
+true of the transcript/metadata endpoints themselves but not of `/me`. Worth
+reconciling the local `CreditLedger` against it periodically rather than trusting
+the in-process count indefinitely, per the credit_usage.py note about drift.
 
 ## Errors
 
