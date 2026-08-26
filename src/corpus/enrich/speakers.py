@@ -36,15 +36,26 @@ from corpus.db.models import Document, Entity, Source, Speaker
 
 # Allows an optional lowercase surname particle (van, de, der, von, la, ...) — plain
 # title-case-only missed real names like "Leon van Zyl" in the calibration sample.
-_PARTICLE = r"(?:[a-z]{2,3}\s+)?"
-_NAME = rf"[A-Z][a-z]+(?:\.[a-z]*)?(?:\s+{_PARTICLE}[A-Z][a-z]+){{1,2}}"
+#
+# Separators are [ \t]+, never \s+: \s crosses newlines, and descriptions are full of
+# them. "...videos\n\nSpecial Thanks" was captured as a two-word name because the gap
+# between an outro line and a new heading looked exactly like the gap between a first
+# and last name.
+_PARTICLE = r"(?:[a-z]{2,3}[ \t]+)?"
+_NAME = rf"[A-Z][a-z]+(?:\.[a-z]*)?(?:[ \t]+{_PARTICLE}[A-Z][a-z]+){{1,2}}"
 
-_DESCRIPTION_GUEST_EXPLICIT = re.compile(rf"\bguests?:?\s+({_NAME})", re.IGNORECASE)
+# Case-insensitivity is scoped to the literal cue with (?i:...), never applied to the
+# whole pattern. Under a blanket re.IGNORECASE the [A-Z][a-z]+ in _NAME also matches
+# lowercase words, which destroys the only thing separating a name from ordinary
+# prose: "both guests would remove by fiat" yielded the speaker "would remove by
+# fiat", and "ft. Ryan Carson from" yielded "Ryan Carson from". That was 5 of 84
+# parsed labels on this corpus (docs/DECISIONS.md, 2026-08-26).
+_DESCRIPTION_GUEST_EXPLICIT = re.compile(rf"(?i:\bguests?:?)[ \t]+({_NAME})")
 _DESCRIPTION_GUEST_BIO = re.compile(
-    rf"^({_NAME})\s+(?:is|was|has|spent|founded|leads|runs|works?|worked|co-founded)\b"
+    rf"^({_NAME})[ \t]+(?:is|was|has|spent|founded|leads|runs|works?|worked|co-founded)\b"
 )
 # "with X" deliberately absent — see module docstring, point 1.
-_TITLE_GUEST = re.compile(rf"\b(?:ft\.?|feat\.?)\s+({_NAME})\b", re.IGNORECASE)
+_TITLE_GUEST = re.compile(rf"(?i:\b(?:ft\.?|feat\.?))[ \t]+({_NAME})\b")
 
 _SOURCE_NAME_EMBEDDED = re.compile(rf"^({_NAME})\s+(?:on|of|'s)\b")
 _SOURCE_IS_JUST_A_NAME = re.compile(rf"^{_NAME}$")
