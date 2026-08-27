@@ -703,3 +703,33 @@ export async function runSynthesis(args: SynthesisFilter): Promise<SynthesisRepo
   }
   return res.json();
 }
+
+// --- Doctor ----------------------------------------------------------------
+//
+// Read-only and free (no model load, no API calls), so unlike search or
+// synthesis this can be refreshed freely.
+
+export interface DoctorStage {
+  stage: string;
+  done: number;
+  total: number;
+  status: "ok" | "partial" | "empty" | "unknown";
+  impact: string;
+  remedy: string;
+  share: number | null;
+  missing: number;
+}
+
+export interface DoctorReport {
+  stages: DoctorStage[];
+  incomplete: number;
+}
+
+export async function fetchDoctor(): Promise<DoctorReport> {
+  const res = await fetch(`${API_BASE}/api/doctor`);
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.detail ?? `doctor failed: ${res.status}`);
+  }
+  return res.json();
+}

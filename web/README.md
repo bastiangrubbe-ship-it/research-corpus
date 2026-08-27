@@ -1,8 +1,11 @@
 # research-corpus dashboard
 
-Local dashboard over the whole corpus: search and provenance, synthesis, analytics,
-coverage, eval history, the MCP tool catalogue, enrichment triggers, and the original
-ingestion controls. Talks to the FastAPI backend in `src/corpus/web/` (this
+Local dashboard over the whole corpus: pipeline health, search and provenance,
+synthesis, analytics, coverage, eval history, the MCP tool catalogue, enrichment
+triggers, and the original ingestion controls.
+
+Day-to-day querying now happens inside Claude over MCP; what remains most useful here
+is the operations half — ingesting, enriching, and knowing whether any of it finished. Talks to the FastAPI backend in `src/corpus/web/` (this
 project's Python side) over HTTP + SSE.
 
 Built on [`@bastiangrubbe/ui-kit`](https://github.com/bastiangrubbe-ship-it/ui-kit) —
@@ -28,8 +31,16 @@ network-reachable.
 
 ## What it does
 
-Thirteen panels. `App.tsx` is a shell; each panel is its own component under
+Fourteen panels. `App.tsx` is a shell; each panel is its own component under
 `src/components/`, sharing one `App.module.css`.
+
+### Operations
+
+- **Pipeline health** — which stages actually ran over the whole corpus, and what is
+  silently degraded while one is partial. Free and read-only, so refresh freely. Check
+  it before believing a "nothing found" result: the recurring failure here is not a
+  stage breaking, it is a stage running over part of the corpus while everything
+  downstream keeps working confidently over whatever fraction exists.
 
 ### Reading the corpus
 

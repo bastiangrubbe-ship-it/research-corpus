@@ -82,11 +82,14 @@ could not tell" is a different claim from a guess, and the column records which.
   as complete.
 - **MCP** exposes all five tools: `corpus_search`, `corpus_analytics`,
   `corpus_coverage`, `corpus_synthesize`, `corpus_provenance`.
+- **`flows/doctor.py`** reports per-stage completeness across the corpus and names
+  what silently degrades while a stage is partial. Free and read-only; exits 1 when
+  anything is incomplete. Run it before believing a "nothing found" result.
 - **Query logging** (`query_log`, on by default) records what was asked and how
   coverage graded it, so repeated weak coverage becomes a sourcing backlog rather than
   evaporating per response — `analytics/query_insights.py`. It is the most sensitive
   table here; `CORPUS_LOG_QUERIES=false` disables it.
-- **The dashboard** (`web/`, backed by `src/corpus/web/`) has 13 panels covering all
+- **The dashboard** (`web/`, backed by `src/corpus/web/`) has 14 panels covering all
   of the above plus the original ingestion controls — see `web/README.md`.
 
 Not done: step 0 (baseline capture), step 6's chunk-level *re-embedding* tooling, and
@@ -125,6 +128,6 @@ Read when the work calls for them, not by default.
 - `docs/EVAL.md` — entity extraction: rubric, scoring, and extractor comparison results
 - `docs/EVAL_RELEVANCE_GATE.md` — first-pass precision check on the local embedding
   relevance gate that decides which documents get a `claude -p` call
-- `web/README.md` — running the dashboard (13 panels: search, synthesis, coverage,
-  analytics, eval runs, MCP tools, enrichment triggers, RSS feeds, plus the original
-  ingestion set)
+- `web/README.md` — running the dashboard (14 panels: pipeline health, search,
+  synthesis, coverage, analytics, eval runs, MCP tools, enrichment triggers, RSS feeds,
+  plus the original ingestion set)

@@ -17,6 +17,7 @@ import {
 import styles from "./App.module.css";
 import AnalyticsPanel from "./components/AnalyticsPanel";
 import CoveragePanel from "./components/CoveragePanel";
+import DoctorPanel from "./components/DoctorPanel";
 import EnrichmentPanel from "./components/EnrichmentPanel";
 import EvalHistoryPanel from "./components/EvalHistoryPanel";
 import McpPanel from "./components/McpPanel";
@@ -192,6 +193,7 @@ export default function App() {
     <div className={styles.page}>
       <h1 className={styles.title}>research-corpus — dashboard</h1>
 
+      <DoctorPanel />
       <SearchPanel />
       <SynthesisPanel />
       <CoveragePanel />

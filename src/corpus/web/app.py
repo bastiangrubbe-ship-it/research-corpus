@@ -20,6 +20,7 @@ from corpus.ingest.runner import resolve_tenant_id
 from corpus.ops.credit_usage import summarize
 from corpus.web.analytics import router as analytics_router
 from corpus.web.coverage import router as coverage_router
+from corpus.web.doctor import router as doctor_router
 from corpus.web.enrichment import router as enrichment_router
 from corpus.web.eval_history import router as eval_router
 from corpus.web.mcp_tools import router as mcp_router
@@ -47,6 +48,7 @@ app.include_router(search_router)
 app.include_router(synthesis_router)
 app.include_router(analytics_router)
 app.include_router(coverage_router)
+app.include_router(doctor_router)
 app.include_router(eval_router)
 app.include_router(mcp_router)
 app.include_router(enrichment_router)
