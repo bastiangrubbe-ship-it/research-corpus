@@ -46,7 +46,8 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
 from corpus.db.enums import SummaryMethod
-from corpus.db.models import DocumentSummary, EntityExtractionRun, TranscriptVersion
+from corpus.db.models import DocumentSummary, EntityExtractionRun
+from corpus.db.transcript_versions import index_versions
 from corpus.embedding.encode import embed_documents, embedding_model_version
 from corpus.enrich.entities import reconstruct_transcript_text
 from corpus.enrich.summarize import summarize_extractive
@@ -55,18 +56,18 @@ from corpus.retrieval.rerank import rerank_documents
 
 
 def _latest_transcript_versions(tenant_id: uuid.UUID):
-    """(document_id, transcript_version_id) for each document's most recent
-    transcript_version — same "which version is current" logic entities.py uses."""
-    return (
-        select(
-            TranscriptVersion.document_id,
-            TranscriptVersion.id.label("transcript_version_id"),
-        )
-        .where(TranscriptVersion.tenant_id == tenant_id)
-        .distinct(TranscriptVersion.document_id)
-        .order_by(TranscriptVersion.document_id, TranscriptVersion.created_at.desc())
-        .subquery()
-    )
+    """The version summaries should be built from: newest **non-restored**.
+
+    Deliberately not "newest, whatever provider", which is what this used to be and
+    what `entities.py` still correctly uses. A summary is embedded and BM25-indexed,
+    never read by a person, and restored text measured worse as input for both: dense
+    P -0.046 / R -0.069, lexical P -0.138 (docs/DECISIONS.md, 2026-08-26).
+
+    The old rule was right until restoration ran and silently wrong forever after —
+    any later backfill would rebuild the index from the worse source with nothing
+    failing. See `corpus.db.transcript_versions` for the full reasoning.
+    """
+    return index_versions(tenant_id)
 
 
 def backfill_document_summaries(
@@ -82,13 +83,16 @@ def backfill_document_summaries(
     Runs entirely locally — no `claude -p` call anywhere in this path. Returns the
     number of documents processed.
 
-    `redo=True` re-derives summaries that already exist, overwriting them. This is for
-    when the *input* has changed rather than the code: `_latest_transcript_versions`
-    resolves to a document's newest version, so once punctuation restoration has run,
-    a re-derivation reads restored text where the original read raw ASR. That matters
-    because `summarize_extractive` needs sentence boundaries — TextRank has nothing to
-    rank when NLTK cannot split the text, which on this corpus left ~5% of documents
-    with a summary that was effectively one truncated blob (docs/DECISIONS.md).
+    `redo=True` re-derives summaries that already exist, overwriting them — for when
+    the summariser or the embedding model changes.
+
+    It will **not** pick up restored text: `_latest_transcript_versions` pins to the
+    newest non-restored version. That was the point of a redo once, on the theory that
+    restoration gives TextRank the sentence boundaries it needs. Measured, it made
+    retrieval worse in every lane that reads a summary (dense P -0.046 / R -0.069,
+    lexical P -0.138) and the change was reverted: nothing reads these as prose, and a
+    well-formed summary carries 27% less text for a vector to work with
+    (docs/DECISIONS.md, 2026-08-26).
 
     Without `redo` the upsert is `on_conflict_do_nothing`, so re-running is a no-op
     rather than a refresh — safe, but silently so. Anyone expecting a re-derivation

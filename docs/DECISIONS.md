@@ -9,6 +9,37 @@ and dismissed or simply never thought of.
 
 ---
 
+## 2026-08-27 — Reading and indexing now resolve different transcript versions
+
+"Which transcript version is current" had one answer and needs two. `corpus/db/
+transcript_versions.py` splits it:
+
+* `latest_versions` — newest whatever the provider. Synthesis quotes, the eval judge,
+  entity extraction. These give text to a model to read, and restored text is the
+  readable one; a verbatim citation from unpunctuated ASR is useless.
+* `index_versions` — newest **non-restored**. Summaries and chunks. These are embedded
+  and BM25-indexed and never read by a person, and restored text is measurably worse
+  input: summaries dense P −0.046 / R −0.069 and lexical P −0.138; chunks
+  chunk_dense P 0.413 → 0.358.
+
+Both stages previously used "newest by created_at", which is correct right up until
+restoration writes a newer version and then silently wrong forever after. That produced
+both of this week's index defects, and in both the index was quietly rebuilt from worse
+text with nothing failing. Verified against the live corpus: with 3,897 restored
+versions present, `index_versions` returns supadata/ytapi/native only and zero restored.
+
+`index_versions` excludes `restored` rather than allowlisting raw providers, so a future
+transcript source is indexable by default instead of silently vanishing from the index
+because an allowlist was not updated.
+
+**This also settles what restoration is for.** Its documented justification — giving
+NLTK the sentence boundaries TextRank needs — was tested and rejected. What remains is
+readable synthesis citations, which is real but narrower than the 9.3h first pass and
+~3,900 extra `transcript_version` rows imply. Worth revisiting whether it earns that,
+and the stale docstrings claiming otherwise are corrected rather than left to mislead.
+
+---
+
 ## 2026-08-27 — Fifth subscription round: 5 of 34 added, and why the other 29 were not
 
 A refreshed export (460 channels, up from 425). Diffing against the seeds and the

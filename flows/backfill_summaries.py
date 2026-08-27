@@ -38,10 +38,11 @@ def main() -> int:
         "--redo",
         action="store_true",
         help=(
-            "re-derive summaries that already exist, overwriting them. Use after "
-            "punctuation restoration: the summariser reads a document's newest "
-            "transcript version, so a redo reads restored text where the original "
-            "read raw ASR. Without this a re-run is a silent no-op."
+            "re-derive summaries that already exist, overwriting them — for when the "
+            "summariser or embedding model changes. It will NOT pick up restored "
+            "text: summaries pin to the newest non-restored version, because restored "
+            "text measured worse as retrieval input. Without this flag a re-run is a "
+            "silent no-op."
         ),
     )
     args = parser.parse_args()

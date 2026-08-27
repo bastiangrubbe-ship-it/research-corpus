@@ -24,6 +24,7 @@ from sqlalchemy.orm import Session
 
 from corpus.chunking.windows import SegmentInput, build_windows
 from corpus.db.models import Chunk, Segment, TranscriptVersion
+from corpus.db.transcript_versions import index_versions
 from corpus.embedding.encode import embed_documents, embedding_model_version
 
 #: Chunks embedded per forward pass. Chunks are ~1,600 characters, so this is a far
@@ -57,16 +58,10 @@ def find_unchunked_transcript_versions(
     chunks first — `rechunk_document` does exactly that, and doing it explicitly is
     the point.
     """
-    latest = (
-        select(
-            TranscriptVersion.document_id,
-            TranscriptVersion.id.label("transcript_version_id"),
-        )
-        .where(TranscriptVersion.tenant_id == tenant_id)
-        .distinct(TranscriptVersion.document_id)
-        .order_by(TranscriptVersion.document_id, TranscriptVersion.created_at.desc())
-        .subquery()
-    )
+    # Newest NON-restored version: a chunk is embedded, never read by a person, and
+    # chunks built from restored text measured worse (chunk_dense P 0.413 -> 0.358,
+    # R 0.485 -> 0.431). See corpus.db.transcript_versions.
+    latest = index_versions(tenant_id)
     # Per document, not per transcript version — see the docstring.
     already = select(Chunk.document_id).where(Chunk.tenant_id == tenant_id)
     stmt = select(latest.c.transcript_version_id, latest.c.document_id).where(

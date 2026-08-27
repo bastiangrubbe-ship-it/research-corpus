@@ -45,11 +45,21 @@ reads `entity` when available, so it is better after entity extraction than befo
 
 ## The ordering constraints that have actually bitten
 
-**1. "Latest transcript version wins" is the rule everywhere.** `chunking/backfill.py`,
-`enrich/relevance_gate.py` and `enrich/entities.py` all resolve a document's newest
-`transcript_version` via `DISTINCT ON (document_id) ... ORDER BY created_at DESC`.
-Restoration writes a *newer* version, so **running restoration changes what every
-downstream stage reads.**
+**1. Reading and indexing use different transcript versions, and that is deliberate.**
+`corpus/db/transcript_versions.py` has two resolvers:
+
+* `latest_versions` — newest whatever the provider, so restored if one exists. Used by
+  synthesis quotes, the eval judge and entity extraction: these hand text to a model to
+  read, and a citation pulled from unpunctuated ASR is unreadable.
+* `index_versions` — newest **non-restored**. Used by summaries and chunks: these are
+  embedded and BM25-indexed, never read by a person, and restored text measured worse
+  as input for both.
+
+This used to be one rule — "newest by created_at" — which is correct until restoration
+runs and silently wrong forever after. Two defects came from it before the split
+(2026-08-26 and 2026-08-27), both of which rebuilt an index from worse text with
+nothing failing. Pinning by provider puts the choice at the query where it cannot be
+forgotten. Asserted by `tests/unit/test_transcript_version_choice.py`.
 
 **2. Never run `backfill_chunks` after restoration expecting a no-op.** It excludes per
 document (fixed 2026-08-27), but before that fix it excluded per *transcript version*
@@ -58,11 +68,13 @@ and built a second chunk set against restored text while leaving the raw one liv
 `DISTINCT ON` picked the closer-but-less-relevant restored chunks. Use
 `chunking.backfill.rechunk_document` to supersede deliberately; it deletes first.
 
-**3. Summaries and chunks should be derived from RAW text, not restored.** Measured
-twice, independently: restored text is better *as prose* and worse *as retrieval
-input*. A bi-encoder embeds these and BM25 counts terms in them, and coverage beats
-grammaticality — the 4,000-char truncated blobs carried 27% more topical surface.
-Restoration remains worth having for synthesis quotes and reranker input.
+**3. Summaries and chunks are derived from RAW text.** Enforced by `index_versions`
+now rather than left to whoever runs the backfill. Measured twice, independently:
+restored text is better *as prose* and worse *as retrieval input* — a bi-encoder embeds
+these and BM25 counts terms, and coverage beats grammaticality, since a well-formed
+summary carries 27% less text. Restoration's remaining justification is readable
+synthesis citations; its documented one (helping TextRank find sentence boundaries) was
+tested and rejected.
 
 **4. Entities before speakers.** `guess_speaker` validates candidate names against the
 `entity` table; a name known to be a VENDOR or PRODUCT is rejected. Run before entity
