@@ -119,3 +119,28 @@ class DocumentStatus(StrEnum):
 class SummaryMethod(StrEnum):
     EXTRACTIVE_TEXTRANK = "extractive_textrank"
     ABSTRACTIVE_LLM = "abstractive_llm"  # on-demand only, never a corpus-wide pass
+
+
+class TranscriptUnavailableReason(StrEnum):
+    """Why a document has no transcript, established by probing rather than assumed.
+
+    Exists so the pipeline doctor can tell "not fetched yet" apart from "cannot be
+    fetched". Without it, 74 documents on this corpus made four stages read as
+    permanently incomplete, which trains an operator to ignore the check — the exact
+    failure a health check has to avoid.
+
+    Note what these do *not* claim. `MEMBERS_ONLY` is a credentials problem, not a
+    permanent one: those videos become fetchable to an account holding the membership.
+    `NO_CAPTIONS` can change if a creator adds them later. Only `REMOVED` is close to
+    final. Pair every value with `transcript_probed_at` and re-probe rather than
+    treating any of them as settled — the same reason `is_auto_generated` is nullable.
+    """
+
+    #: Needs a paid channel membership. Not permanent — a credentials gap.
+    MEMBERS_ONLY = "members_only"
+    #: Reachable, but the video carries no captions of any kind. Nothing to fetch.
+    NO_CAPTIONS = "no_captions"
+    #: Deleted, private, or otherwise gone.
+    REMOVED = "removed"
+    #: Reachable, captions exist, the fetch failed anyway. The only retryable value.
+    FETCH_FAILED = "fetch_failed"

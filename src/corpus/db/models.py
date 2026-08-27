@@ -166,6 +166,13 @@ class Document(Base, TenantScoped):
 # ---------------------------------------------------------------------------
 # transcripts
 # ---------------------------------------------------------------------------
+    #: Why this document has no transcript, established by probing (see
+    #: enums.TranscriptUnavailableReason). NULL means never checked, which is a
+    #: different claim from any reason. Paired with `transcript_probed_at` because
+    #: none of the reasons is permanent — members-only is a credentials gap, and
+    #: captions can be added later.
+    transcript_unavailable_reason: Mapped[str | None] = mapped_column(String(32))
+    transcript_probed_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))
 class TranscriptVersion(Base, TenantScoped):
     """One row per (document, provider). A document may have several.
 
@@ -208,6 +215,7 @@ class TranscriptVersion(Base, TenantScoped):
         ForeignKey("transcript_version.id", ondelete="CASCADE")
     )
     created_at: Mapped[dt.datetime] = _now()
+
 
 
 class Segment(Base, TenantScoped):
