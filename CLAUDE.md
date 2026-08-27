@@ -123,7 +123,8 @@ Read when the work calls for them, not by default.
 - `docs/FEDERATION.md` — how this corpus relates to realtime search (web, Reddit, X) when
   driven from inside Claude, and why the fan-out layer is deliberately *not* built here
 - `docs/SUPADATA.md` — the confirmed Supadata API schema and what it does *not* provide
-- `docs/SCHEMA.md` — table-by-table design notes and the RLS mechanics
+- `docs/PIPELINE.md` — the stage graph, the ordering constraints that have actually
+  caused outages, and how to verify a change. Start here to fix or extend the pipeline
 - `docs/DECISIONS.md` — what was chosen, what was rejected, and why
 - `docs/EVAL.md` — entity extraction: rubric, scoring, and extractor comparison results
 - `docs/EVAL_RELEVANCE_GATE.md` — first-pass precision check on the local embedding
