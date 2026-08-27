@@ -9,6 +9,68 @@ and dismissed or simply never thought of.
 
 ---
 
+## 2026-08-26 (later) — Re-deriving summaries from restored text made retrieval WORSE; reverted
+
+A negative result, kept because it cost two hours to get and because the reasoning
+behind the prediction was wrong in a way that generalises.
+
+**The hypothesis.** `summarize_extractive` runs TextRank over NLTK sentences, and
+unpunctuated ASR gives NLTK nothing to split on. Measured: mean longest "sentence"
+3,197 chars raw vs 365 restored; 5% of transcripts degenerate (>2,000), 26% poor
+(600-2,000); 332 of 3,270 summaries sat at the 4,000-char truncation cap. So
+re-deriving summaries from restored transcripts should improve the dense lane.
+
+**What happened.** 3,275 summaries re-derived in 43.7m, 98.2% of the text changed,
+at-cap truncations fell 332 -> 6, mean length 1,730 -> 1,260 chars. Retrieval got
+worse in every lane that reads a summary:
+
+| lane | ΔP | ΔR |
+|---|---|---|
+| `chunk_dense` (control — reads no summary) | **+0.000** | **+0.000** |
+| dense | −0.046 | −0.069 |
+| lexical | −0.138 | −0.012 |
+| reranked | −0.012 | −0.037 |
+
+Per query the dense lane improved on 2, was flat on 3, degraded on 7. Reverted from
+`document_summary_backup_20260826`; dense is back to P=0.408 / R=0.483 exactly.
+
+**Why, most likely.** Nothing reads these summaries as prose. A bi-encoder embeds them
+and BM25 counts terms in them, and for both, *coverage beats grammaticality*. The old
+truncated 4,000-char blobs carried 27% more text and therefore more of the document's
+topical surface. The truncation diagnosed as damage was doing useful work. Restoration
+is still worth having — it is what makes synthesis quotes and reranker input readable —
+but "better text" and "better retrieval input" are not the same objective, and this
+project had been assuming they were.
+
+Falsifiable follow-up, now cheap: if length is the mechanism, raising
+`_MAX_SUMMARY_CHARS` on restored text should beat baseline — same well-formed
+sentences, restored coverage.
+
+### Two methodology failures, which are the more transferable part
+
+**The obvious comparison was invalid and looked conclusive.** Running the eval harness
+before and after produced a clean-looking regression (reranked R 0.723 -> 0.566). It
+was mostly an artifact: each run judges its own pool, so newly-surfaced documents got
+judged and the relevant-set grew between runs (47->53, 28->35, 26->31...). Recall's
+denominator moved underneath the measurement. **Any A/B where the metric's denominator
+is itself recomputed per run is measuring two things at once.** The fix is to score
+both conditions against one frozen judgment set — `scripts/paired_retrieval_ab.py`
+does this by restoring the backup inside a transaction it rolls back, so the live table
+is never persistently modified.
+
+**The chosen control was not a control.** `lexical` was assumed to read only
+title/description; it reads `document_summary.text` too (`retrieval/lexical.py`), so it
+moved with the treatment. Only `chunk_dense` was ever valid. That it moved by exactly
+0.000 is what makes the rest of the table trustworthy — and had it moved, the honest
+reading would have been "the harness changed", not "the corpus improved".
+
+The tell that something was wrong was visible before any of this was understood:
+`chunk_dense` precision was identical across the two runs while its recall fell. A lane
+whose retrieval cannot have changed cannot lose recall unless the metric changed.
+**When a control moves, believe the control.**
+
+---
+
 ## 2026-08-26 — Synthesis lands; two bugs found by running the enrichers at full scale
 
 `corpus_synthesize` completes the third capability (filter-then-synthesize) and the
