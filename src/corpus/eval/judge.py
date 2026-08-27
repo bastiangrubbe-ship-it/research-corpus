@@ -16,14 +16,18 @@ from __future__ import annotations
 
 import json
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, dataclass
 from enum import StrEnum
 from pathlib import Path
 
+import structlog
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from corpus.eval.pool import PooledCandidate
 from corpus.llm.headless import ClaudeCliError, run_claude_headless
+
+log = structlog.get_logger(__name__)
 
 JUDGE_MODEL = "haiku"
 JUDGE_TIMEOUT_S = 600.0
@@ -205,6 +209,13 @@ def save_cache(cache_dir: Path, query_id: str, judgments: dict[str, Judgment]) -
     path.write_text(json.dumps({k: asdict(v) for k, v in judgments.items()}, indent=2))
 
 
+#: Parallel `claude -p` judge calls. Matches what entity extraction measured safe
+#: (up to 25, near-linear speedup, zero errors — docs/DECISIONS.md); 12 is the
+#: conservative default because a judge call sends a whole untruncated transcript and
+#: escalates large ones to Opus, so each is heavier than an extraction call.
+DEFAULT_JUDGE_CONCURRENCY = 12
+
+
 def judge_pool(
     query_id: str,
     query_text: str,
@@ -213,22 +224,58 @@ def judge_pool(
     cache_dir: Path,
     fetch_text: callable,
     force: bool = False,
+    concurrency: int = DEFAULT_JUDGE_CONCURRENCY,
 ) -> dict[str, Judgment]:
     """Judges every candidate not already cached, then persists the merged result.
     `fetch_text(document_id) -> str` is injected rather than imported directly so
     this module has no database dependency of its own — callers already have a
     session open and know how to reconstruct a document's text.
+
+    Judging runs concurrently. It used to be a serial loop, which on this corpus meant
+    a single query took **six hours**: ~55 candidates, each a full-transcript
+    `claude -p` call, one after another (docs/DECISIONS.md, 2026-08-27). The calls are
+    independent and network-bound, so this is the same shape as
+    `enrich_documents_concurrent`.
+
+    `fetch_text` is called on the main thread, deliberately. Callers pass a closure
+    over an open SQLAlchemy session, and a Session is not thread-safe — reading
+    transcripts inside the pool would be a data race that usually appears to work.
+    Only the LLM call, which touches no database, is parallelised.
+
+    A candidate that fails is skipped rather than failing the run, and is simply not
+    cached: an unjudged document is a known gap, whereas a judgement invented to keep
+    the loop going is a silent corruption of ground truth.
     """
     cached = {} if force else load_cache(cache_dir, query_id)
     judgments = dict(cached)
-    for candidate in candidates:
-        key = str(candidate.document_id)
-        if key in judgments:
-            continue
-        text = fetch_text(candidate.document_id)
-        judgments[key] = judge_one(
-            query_text, document_id=candidate.document_id, title=candidate.title, text=text
-        )
+
+    pending = [c for c in candidates if str(c.document_id) not in judgments]
+    if not pending:
+        return judgments
+
+    # Sequential fetch (see docstring), then a concurrent judge over the results.
+    texts = [(c, fetch_text(c.document_id)) for c in pending]
+
+    def judge(item: tuple[PooledCandidate, str]) -> tuple[str, Judgment | None]:
+        candidate, text = item
+        try:
+            return str(candidate.document_id), judge_one(
+                query_text,
+                document_id=candidate.document_id,
+                title=candidate.title,
+                text=text,
+            )
+        except (JudgeCallError, JudgeParseError) as exc:
+            log.warning(
+                "judge_failed", document_id=str(candidate.document_id), error=str(exc)
+            )
+            return str(candidate.document_id), None
+
+    with ThreadPoolExecutor(max_workers=max(1, concurrency)) as pool:
+        for key, judgment in pool.map(judge, texts):
+            if judgment is not None:
+                judgments[key] = judgment
+
     if judgments != cached:
         save_cache(cache_dir, query_id, judgments)
     return judgments

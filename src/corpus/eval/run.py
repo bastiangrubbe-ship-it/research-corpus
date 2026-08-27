@@ -87,7 +87,9 @@ def _score_lane(
     )
 
 
-def run_eval(*, top_k: int = 20, force_rejudge: bool = False) -> list[QueryResult]:
+def run_eval(
+    *, top_k: int = 20, force_rejudge: bool = False, judge_concurrency: int | None = None
+) -> list[QueryResult]:
     settings = get_settings()
     tenant_id = resolve_tenant_id(settings)
     cache_dir = settings.eval_dir / "judgments"
@@ -116,6 +118,9 @@ def run_eval(*, top_k: int = 20, force_rejudge: bool = False) -> list[QueryResul
                     return ""
                 return reconstruct_transcript_text(_session, tv_id)
 
+            judge_kwargs = {}
+            if judge_concurrency is not None:
+                judge_kwargs["concurrency"] = judge_concurrency
             judgments = judge_pool(
                 q["id"],
                 q["text"],
@@ -123,6 +128,7 @@ def run_eval(*, top_k: int = 20, force_rejudge: bool = False) -> list[QueryResul
                 cache_dir=cache_dir,
                 fetch_text=fetch_text,
                 force=force_rejudge,
+                **judge_kwargs,
             )
 
             total_strict = sum(1 for j in judgments.values() if j.verdict in _RELEVANT_VERDICTS)
@@ -164,11 +170,24 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--top-k", type=int, default=20, help="per-lane candidate pool size")
     parser.add_argument(
+        "--judge-concurrency",
+        type=int,
+        default=None,
+        help=(
+            "parallel judge calls (default 12). Judging used to be serial, which made "
+            "a single query take six hours on this corpus."
+        ),
+    )
+    parser.add_argument(
         "--force-rejudge", action="store_true", help="ignore cached judgments, re-run the LLM judge"
     )
     args = parser.parse_args()
 
-    results = run_eval(top_k=args.top_k, force_rejudge=args.force_rejudge)
+    results = run_eval(
+        top_k=args.top_k,
+        judge_concurrency=args.judge_concurrency,
+        force_rejudge=args.force_rejudge,
+    )
     path = _write_run(results, top_k=args.top_k)
     print(f"wrote {path}")
     for r in results:

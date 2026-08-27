@@ -52,11 +52,23 @@ with tenant_session(tid) as session:
 }
 trap on_failure ERR
 
+# Both flows default to --concurrency 1, and this script used to pass no arguments at
+# all, so the nightly ran entirely serially despite the concurrency machinery being
+# built, measured and documented. nightly_entities' own docstring records concurrency
+# "measured safe up to 25 in practice with zero errors and near-linear wall-clock
+# speedup" (docs/DECISIONS.md).
+#
+# --since-days matters as much as the concurrency. Without it, discovery re-enumerates
+# every channel's entire back catalogue every night to find the handful of new videos;
+# 7 days is comfortably wider than a daily cadence and survives a few missed runs.
 echo "[$(date -u +%FT%TZ)] nightly: ingest"
-uv run python flows/ingest_youtube.py
+uv run python flows/ingest_youtube.py \
+  --since-days "${NIGHTLY_SINCE_DAYS:-7}" \
+  --concurrency "${NIGHTLY_INGEST_CONCURRENCY:-1}"
 
 echo "[$(date -u +%FT%TZ)] nightly: entity extraction"
-uv run python flows/nightly_entities.py
+uv run python flows/nightly_entities.py \
+  --concurrency "${NIGHTLY_ENTITY_CONCURRENCY:-15}"
 
 # Records a successful completion so `flows/doctor.py` can report when ingestion last
 # actually finished. Without it the only evidence of a broken nightly is a traceback in

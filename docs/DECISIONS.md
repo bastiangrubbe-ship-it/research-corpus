@@ -9,6 +9,64 @@ and dismissed or simply never thought of.
 
 ---
 
+## 2026-08-27 (later) — The pipeline was serial everywhere the concurrency already existed
+
+Asked what would make this 10x faster, the answer turned out to be mostly "pass the
+flags that were already built, measured and documented".
+
+### Judging was a serial loop
+
+`judge_pool` ran `for candidate in candidates:` — one full-transcript `claude -p` call
+at a time. On this corpus a single eval query took **six hours**: ~55 candidates, each
+sending a whole untruncated transcript, escalating to Opus above 200k chars. That is
+why a 12-query eval ran for most of a day.
+
+Now concurrent at 12 by default. `enrich_documents_concurrent` had already established
+the pattern and `nightly_entities.py`'s docstring already recorded concurrency
+"measured safe up to 25 in practice with zero errors and near-linear wall-clock
+speedup". 12 rather than 25 because a judge call carries a whole transcript and is
+heavier than an extraction call.
+
+Two details that are easy to get wrong:
+
+* **`fetch_text` stays on the calling thread.** Callers pass a closure over an open
+  SQLAlchemy `Session`, which is not thread-safe; reading transcripts inside the pool
+  would be a race that usually appears to work. Only the LLM call, which touches no
+  database, is parallelised. Asserted by a test.
+* **A failed candidate is dropped, never defaulted.** An unjudged document is a known
+  gap; a verdict invented to keep the loop moving is a silent corruption of the ground
+  truth every other measurement depends on.
+
+### The nightly passed no arguments at all
+
+`nightly.sh` invoked both flows bare, so both took `--concurrency 1` — the machinery
+existed, was measured, was documented, and was not used. Entity extraction now runs at
+15.
+
+`--since-days` matters as much as the concurrency and was easier to miss: with no
+window, discovery re-enumerated every channel's **entire back catalogue** every night
+to find a handful of new videos. Now 7 days — wider than a daily cadence, so a few
+missed runs still recover.
+
+Ingest concurrency stays at 1 by default, deliberately. Raising it requires
+`--metadata-source supadata`, which moves cost from yt-dlp (free, rate-limited) to
+Supadata (metered), and that is a spending decision rather than a tuning one. All three
+are env-overridable (`NIGHTLY_INGEST_CONCURRENCY`, `NIGHTLY_ENTITY_CONCURRENCY`,
+`NIGHTLY_SINCE_DAYS`) so raising it is one variable, not an edit.
+
+### Where 10x is not available
+
+Reranking dominates query latency (pool=50 ~36s) and has perhaps 2-4x in it, not 10x:
+`batch_size=4` is forced by MPS memory and fp32 is required to avoid the score-collision
+bug. Real gains there need a smaller or quantised cross-encoder, which is a model
+change with its own evaluation.
+
+The general shape: **the wins were not in making work faster, they were in not doing
+unnecessary work** — enumerating 3,000 back-catalogue videos to find two, judging 55
+documents one at a time, embedding a second chunk set that measurably hurt retrieval.
+
+---
+
 ## 2026-08-27 — The nightly job had been dead for four nights, and nothing said so
 
 Four findings, one theme: this corpus keeps failing in ways that present as normal
