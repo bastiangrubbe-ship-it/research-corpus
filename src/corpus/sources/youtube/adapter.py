@@ -34,6 +34,7 @@ from corpus.sources.base import (
     SourceError,
     TranscriptUnavailable,
 )
+from corpus.sources.youtube.rss_discovery import is_probable_short
 from corpus.sources.youtube.supadata import SupadataClient
 from corpus.sources.youtube.ytapi import YtApiTranscriptClient
 from corpus.sources.youtube.ytdlp_meta import YtDlpMetadataClient
@@ -51,7 +52,24 @@ class YouTubeAdapter:
         supadata: SupadataClient | None = None,
         ytapi: YtApiTranscriptClient | None = None,
         provider_order: Sequence[str] = ("ytapi", "supadata"),
+        discovery: str = "ytdlp",
+        channel_ids: dict[str, str] | None = None,
     ) -> None:
+        #: "ytdlp" walks a channel's /videos tab; "rss" reads its feed instead.
+        #:
+        #: RSS is ~0.11s of plain HTTP against a yt-dlp subprocess, parallelises, and
+        #: does not trip YouTube's bot detection. It also returns Shorts, which
+        #: /videos deliberately excludes — measured on @danmartell, 5 of 6 recent feed
+        #: entries were Shorts (docs/DECISIONS.md, 2026-08-27). So selecting "rss"
+        #: also turns on the duration guard in `fetch`; the two are not separable
+        #: without quietly changing what enters the corpus.
+        if discovery not in ("ytdlp", "rss"):
+            raise ValueError(f"discovery must be 'ytdlp' or 'rss', got {discovery!r}")
+        self._discovery = discovery
+        self._filter_shorts = discovery == "rss"
+        #: handle -> UC... , supplied by the caller because resolving it costs a
+        #: yt-dlp call and must be persisted, not repeated per run.
+        self._channel_ids = dict(channel_ids or {})
         self._metadata = metadata or YtDlpMetadataClient()
         self._supadata = supadata
         self._ytapi = ytapi
@@ -95,11 +113,37 @@ class YouTubeAdapter:
         path calls per-video metadata anyway to check dates, so there's nothing to
         cache there that isn't already the real thing.
         """
+        if self._discovery == "rss":
+            return self._discover_via_rss(source_ref, limit=limit, since=since)
         if since is not None:
             return self._metadata.discover_since(source_ref, since=since)
         detailed = self._metadata.discover_channel_videos_detailed(source_ref, limit=limit)
         self._last_discovery_details.update({e["id"]: e for e in detailed if e.get("id")})
         return [e["id"] for e in detailed if e.get("id")]
+
+    def _discover_via_rss(
+        self, source_ref: str, *, limit: int | None, since: dt.datetime | None
+    ) -> list[str]:
+        """Feed-based discovery. Returns candidate ids only — no title/duration is
+        cached, because the feed carries neither, so `metadata_source="skip"` is not
+        available on this path and `fetch` must resolve metadata itself.
+
+        A handle with no known channel id is skipped with a warning rather than
+        resolved inline: resolution is a yt-dlp call, and doing it here would
+        reintroduce per-channel yt-dlp on the recurring path, which is the entire
+        thing this mode exists to avoid. `runner.resolve_channel_ids` persists them.
+        """
+        from corpus.sources.youtube.rss_discovery import discover_via_rss
+
+        channel_id = self._channel_ids.get(source_ref) or self._channel_ids.get(
+            source_ref.lstrip("@")
+        )
+        if not channel_id:
+            log.warning("rss_discovery_no_channel_id", source_ref=source_ref)
+            return []
+        videos = discover_via_rss(channel_id, since=since)
+        ids = [v.video_id for v in videos]
+        return ids[:limit] if limit else ids
 
     # -- fetch -------------------------------------------------------------
     def fetch(self, external_id: str, *, lang: str = "en") -> FetchResult:
@@ -113,6 +157,20 @@ class YouTubeAdapter:
             # Metadata failure is not fatal: a transcript with a thin document row
             # is still worth having, and the date can be backfilled later.
             log.warning("metadata_failed", video_id=external_id, error=str(exc))
+
+        # The Shorts guard, and it sits here on purpose: metadata (with duration) is
+        # already resolved, and the transcript call below is what spends a credit. On
+        # the yt-dlp path this never fires because /videos excludes Shorts at
+        # discovery; on the RSS path it is the only thing that does.
+        if self._filter_shorts and is_probable_short(document.duration_s):
+            log.info(
+                "skipped_probable_short",
+                video_id=external_id,
+                duration_s=document.duration_s,
+            )
+            return FetchResult(
+                document=document, transcript=None, raw=raws, error_code="skipped_short"
+            )
 
         transcript, transcript_raws, error_code = self._fetch_transcript(external_id, lang=lang)
         raws.extend(transcript_raws)
