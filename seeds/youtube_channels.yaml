@@ -1548,3 +1548,63 @@
   videos_at_survey: 83
   subscribers_at_survey: 743
   note: "subscriptions tier"
+
+# --- Fifth round, 2026-08-27 -------------------------------------------------
+# From a refreshed subscription export (460 channels, up from 425). Only 34 names
+# were genuinely new; the rest were already seeded or already reviewed in round
+# four. Handles resolved and verified against the live API by
+# scripts/resolve_new_subscriptions.py — the display name alone is not enough,
+# and this round proves why: @Theo is a channel called "Mr Crush" with 293
+# subscribers, not Theo of t3.gg.
+#
+# Only 5 of the 34 are added. The rest were wrong channels (name collisions),
+# duplicates of a seeded source, off-topic, or could not be resolved at all —
+# see docs/DECISIONS.md, 2026-08-27, for the per-channel disposition.
+#
+# Cost of this round: ~1,347 credits.
+
+- handle: "@LangChain"
+  name: "LangChain"
+  domain: ai_automation
+  authority_tier: vendor_official
+  phase: subscriptions
+  videos_at_survey: 558
+  subscribers_at_survey: 201000
+  note: "vendor primary — LangSmith, agent tooling, production agent case studies"
+
+- handle: "@TheWizardofWords"
+  name: "The Wizard of Words"
+  domain: personal_development
+  authority_tier: practitioner
+  phase: subscriptions
+  videos_at_survey: 375
+  subscribers_at_survey: 354000
+  note: "communication and assertiveness scripting"
+
+- handle: "@MollyKeyser"
+  name: "Molly Keyser"
+  domain: entrepreneurship
+  authority_tier: practitioner
+  phase: subscriptions
+  videos_at_survey: 347
+  subscribers_at_survey: 130000
+  note: "digital products and creator monetisation"
+
+- handle: "@LaraAcosta"
+  name: "Lara Acosta"
+  domain: entrepreneurship
+  authority_tier: practitioner
+  phase: subscriptions
+  videos_at_survey: 46
+  subscribers_at_survey: 53300
+  note: "LinkedIn personal branding and distribution"
+
+- handle: "@RealSimonSquibb"
+  name: "Real Simon Squibb"
+  domain: entrepreneurship
+  authority_tier: practitioner
+  phase: subscriptions
+  videos_at_survey: 21
+  subscribers_at_survey: 9360
+  note: "secondary channel; the main Simon Squibb channel is not seeded"
+

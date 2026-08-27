@@ -9,6 +9,58 @@ and dismissed or simply never thought of.
 
 ---
 
+## 2026-08-27 — Fifth subscription round: 5 of 34 added, and why the other 29 were not
+
+A refreshed export (460 channels, up from 425). Diffing against the seeds and the
+round-four classification: 93 already seeded, 163 previously *recommended but
+deliberately deferred* on cost, 170 previously rejected, and **34 genuinely new**.
+
+The 163 are the bigger lever and are not an oversight — `seeds/README.md` costs full
+backfill at ~63,300 credits, 2.1 months at the 30,000/month budget, phased on purpose.
+Left alone here; drawing them down is a spending decision, not a triage one.
+
+### Display names are not identities
+
+`scripts/resolve_new_subscriptions.py` proposes a handle from a name and then checks
+what the live channel calls itself. This round is the argument for that rule, which
+`seeds/README.md` already stated:
+
+* `@Theo` is a channel named **"Mr Crush"** with 293 subscribers, not Theo of t3.gg.
+* `@JonReiter` posts Portuguese motorcycle videos ("brasuka 002.mpg").
+* `@MatthewLarsen` has **14 subscribers** and two unrelated uploads.
+* `@OliverRasmussen` is a Danish school project ("Snejbjerg Skole 9.X").
+
+Every one of those is a plausible handle for the subscribed name and none is the right
+channel. A name-derived seed list would have quietly ingested four wrong channels.
+
+**Added (5, ~1,347 credits):** `@LangChain` (vendor_official — LangSmith, production
+agent case studies; the clear win of the round), `@TheWizardofWords`, `@MollyKeyser`,
+`@LaraAcosta`, `@RealSimonSquibb`.
+
+**Not added:**
+
+* `@TheKoernerOfficeHighlights` — a clips channel for `@thekoerneroffice`, already
+  seeded. Ingesting both double-counts every entity mention from one source and
+  distorts saturation and diffusion, which measure *distinct* sources. Same reasoning
+  that excludes Shorts.
+* `@HermanHuang` — resolves correctly, but the content is video editing and sound
+  design. Off-topic.
+* `@ShaneHummus` (1.67M subs, 1,092 videos) — genuinely on-topic on its face ("The #1
+  Claude AI Side Hustle"), and deliberately held back. Its Claude mentions are
+  formulaic rather than substantive, so ingesting it would add ~1,092 documents that
+  inflate vendor-mention velocity without carrying an argument. That is a judgement
+  worth revisiting, not a settled fact — `authority_tier` exists precisely so
+  low-substance high-reach sources can be recorded accurately rather than excluded,
+  and the counter-argument is that mainstream creator-economy framing of Claude *is*
+  market intelligence.
+* Four wrong channels (above), and 20 that no candidate handle resolved — including
+  LangChain-adjacent names worth having, e.g. Superwall, FDE Pod, Simon Høiberg,
+  Timothy Armoo, Zach Yadegari. These need handles from the source export rather than
+  guessing; a YouTube subscription export carries the channel URL, which would remove
+  this whole class of failure.
+
+---
+
 ## 2026-08-27 (later) — The pipeline was serial everywhere the concurrency already existed
 
 Asked what would make this 10x faster, the answer turned out to be mostly "pass the

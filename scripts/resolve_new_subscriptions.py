@@ -73,11 +73,14 @@ def probe(handle: str) -> dict | None:
             [
                 "yt-dlp",
                 "--no-warnings",
-                "--flat-playlist",
                 "--playlist-end",
                 "1",
                 "--print",
-                "%(channel)s\t%(channel_id)s\t%(channel_follower_count)s",
+                # NOT --flat-playlist: it skips channel metadata entirely and every
+                # field comes back "NA". And the separator is a literal character,
+                # not "\t" — yt-dlp's --print does not interpret escapes, so a tab
+                # template emits the two characters backslash-t.
+                "%(channel)s|%(channel_id)s|%(channel_follower_count)s",
                 f"https://www.youtube.com/{handle}/videos",
             ],
             capture_output=True,
@@ -89,7 +92,7 @@ def probe(handle: str) -> dict | None:
     line = (proc.stdout or "").strip().splitlines()
     if proc.returncode != 0 or not line:
         return None
-    parts = line[0].split("\t")
+    parts = line[0].split("|")
     if len(parts) < 2 or not parts[1].startswith("UC"):
         return None
     subs = parts[2] if len(parts) > 2 else "NA"
