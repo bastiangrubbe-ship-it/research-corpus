@@ -1608,3 +1608,1485 @@
   subscribers_at_survey: 9360
   note: "secondary channel; the main Simon Squibb channel is not seeded"
 
+# --- Fifth round, part 2: previously recommended, previously deferred ----------
+#
+# 162 channels classified `recommend: true` in round four and left out of the seed
+# list purely on cost. Handles were verified against the live API in that round; no
+# re-resolution was needed here.
+#
+# Adding a channel to this file does not spend anything — `phase` is the ingestion
+# ramp, and these are ordered so the domains this corpus exists for come first:
+# AI research/automation by confidence, then entrepreneurship, then personal
+# development. Ingest in phase order.
+#
+# Uncapped these total 58,519 credits (~2 months at the 30,000/month budget). Capping
+# the 15 channels over 800 videos at 400 most recent brings it to
+# 41,179 credits. The cap follows the same reasoning as @bigthink and @asapguide in
+# round one: past a point a channel is mostly repetition against its own tier, and
+# the ingestion pipeline must read the cap from `note`, not `videos_at_survey`.
+
+# subs5-ai-p1: 29 channels, ~6,150 credits
+
+- handle: "@EricWTech"
+  name: "Eric Tech"
+  domain: ai_automation
+  authority_tier: practitioner
+  phase: subs5-ai-p1
+  videos_at_survey: 306
+  subscribers_at_survey: 74800
+  note: "FAANG engineer teaching AI automation"
+
+- handle: "@RyanDoserAI"
+  name: "Ryan Doser"
+  domain: ai_automation
+  authority_tier: practitioner
+  phase: subs5-ai-p1
+  videos_at_survey: 472
+  subscribers_at_survey: 39600
+  note: "Practical AI marketing, tested content"
+
+- handle: "@TheAIAutomators"
+  name: "The AI Automators"
+  domain: ai_automation
+  authority_tier: practitioner
+  phase: subs5-ai-p1
+  videos_at_survey: 111
+  subscribers_at_survey: 64100
+  note: "Production-grade AI agents and systems"
+
+- handle: "@daveebbelaar"
+  name: "Dave Ebbelaar"
+  domain: ai_research
+  authority_tier: practitioner
+  phase: subs5-ai-p1
+  videos_at_survey: 121
+  subscribers_at_survey: 284000
+  note: "AI engineer, deep learning tutorials"
+
+- handle: "@dylandavisAI"
+  name: "Dylan Davis"
+  domain: ai_automation
+  authority_tier: practitioner
+  phase: subs5-ai-p1
+  videos_at_survey: 318
+  subscribers_at_survey: 62500
+  note: "AI automation practitioner, substantial video catalog"
+
+- handle: "@frontierailabs"
+  name: "Frontier Labs"
+  domain: ai_automation
+  authority_tier: practitioner
+  phase: subs5-ai-p1
+  videos_at_survey: 267
+  subscribers_at_survey: 95600
+  note: "Claude AI tools and product building education"
+
+- handle: "@iamseankochel"
+  name: "Sean Kochel"
+  domain: ai_automation
+  authority_tier: practitioner
+  phase: subs5-ai-p1
+  videos_at_survey: 154
+  subscribers_at_survey: 41100
+  note: "AI agents, workflow automation"
+
+- handle: "@intheworldofai"
+  name: "WorldofAI"
+  domain: ai_automation
+  authority_tier: aggregator
+  phase: subs5-ai-p1
+  videos_at_survey: 1197
+  subscribers_at_survey: 234000
+  note: "cap at 400 most recent — Practical AI applications and automation"
+
+- handle: "@mrdbourke"
+  name: "Daniel Bourke"
+  domain: ai_research
+  authority_tier: established_media
+  phase: subs5-ai-p1
+  videos_at_survey: 295
+  subscribers_at_survey: 251000
+  note: "ML engineer, tech and health"
+
+- handle: "@sabrina_ramonov"
+  name: "Sabrina Ramonov 🍄"
+  domain: ai_automation
+  authority_tier: practitioner
+  phase: subs5-ai-p1
+  videos_at_survey: 267
+  subscribers_at_survey: 363000
+  note: "Major AI educator, SaaS founder"
+
+- handle: "@steph_france"
+  name: "Steph France"
+  domain: ai_automation
+  authority_tier: practitioner
+  phase: subs5-ai-p1
+  videos_at_survey: 46
+  subscribers_at_survey: 34700
+  note: "Autonomous agents, AI workflows, direct focus"
+
+- handle: "@FluxAcademy"
+  name: "Flux Academy"
+  domain: ai_automation
+  authority_tier: practitioner
+  phase: subs5-ai-p1
+  videos_at_survey: 1647
+  subscribers_at_survey: 1090000
+  note: "cap at 400 most recent — AI tools and automation for design businesses"
+
+- handle: "@Mark_Kashef"
+  name: "Mark Kashef"
+  domain: ai_automation
+  authority_tier: practitioner
+  phase: subs5-ai-p1
+  videos_at_survey: 215
+  subscribers_at_survey: 82300
+  note: "Established AI educator focused on practical AI agents and automation"
+
+- handle: "@NewMachina"
+  name: "New Machina"
+  domain: ai_research
+  authority_tier: practitioner
+  phase: subs5-ai-p1
+  videos_at_survey: 164
+  subscribers_at_survey: 12100
+  note: "Technical AI engineering and LLMs"
+
+- handle: "@Nico_AIRanking"
+  name: "Nico | AI Ranking"
+  domain: ai_automation
+  authority_tier: practitioner
+  phase: subs5-ai-p1
+  videos_at_survey: 370
+  subscribers_at_survey: 42100
+  note: "AI SEO automation for search ranking"
+
+- handle: "@RobShocks"
+  name: "Rob Shocks"
+  domain: ai_automation
+  authority_tier: practitioner
+  phase: subs5-ai-p1
+  videos_at_survey: 97
+  subscribers_at_survey: 44700
+  note: "AI and no-code development tutorials"
+
+- handle: "@claylawrence24"
+  name: "Clay Lawrence"
+  domain: ai_automation
+  authority_tier: practitioner
+  phase: subs5-ai-p1
+  videos_at_survey: 224
+  subscribers_at_survey: 16200
+  note: "No-code SaaS automation"
+
+- handle: "@customaistudio"
+  name: "Devin Kearns | CustomAI Studio"
+  domain: ai_automation
+  authority_tier: vendor_official
+  phase: subs5-ai-p1
+  videos_at_survey: 58
+  subscribers_at_survey: 16800
+  note: "AI agents for business operations"
+
+- handle: "@damian.galarza"
+  name: "Damian Galarza"
+  domain: ai_research
+  authority_tier: practitioner
+  phase: subs5-ai-p1
+  videos_at_survey: 34
+  subscribers_at_survey: 12600
+  note: "Technical AI architecture focus"
+
+- handle: "@enriquemarq-0"
+  name: "Enrique Marq"
+  domain: ai_automation
+  authority_tier: practitioner
+  phase: subs5-ai-p1
+  videos_at_survey: 36
+  subscribers_at_survey: 2910
+  note: "AI-first development, autonomous systems builder"
+
+- handle: "@eugenekadzin"
+  name: "Eugene Kadzin"
+  domain: ai_automation
+  authority_tier: vendor_official
+  phase: subs5-ai-p1
+  videos_at_survey: 239
+  subscribers_at_survey: 13900
+  note: "AI automation agency founder and CEO"
+
+- handle: "@griffinwdesigns"
+  name: "Griffin Wooldridge"
+  domain: ai_automation
+  authority_tier: practitioner
+  phase: subs5-ai-p1
+  videos_at_survey: 161
+  subscribers_at_survey: 29300
+  note: "AI workflows and tools for designers"
+
+- handle: "@lukas-margerie"
+  name: "Lukas Margerie"
+  domain: ai_automation
+  authority_tier: practitioner
+  phase: subs5-ai-p1
+  videos_at_survey: 437
+  subscribers_at_survey: 21600
+  note: "Claude Code educator teaching AI/no-code automation building"
+
+- handle: "@princeeliot"
+  name: "Eliot Prince"
+  domain: ai_automation
+  authority_tier: practitioner
+  phase: subs5-ai-p1
+  videos_at_survey: 252
+  subscribers_at_survey: 43600
+  note: "AI productivity for business professionals"
+
+- handle: "@samwilco"
+  name: "Sam Wilcox"
+  domain: ai_automation
+  authority_tier: practitioner
+  phase: subs5-ai-p1
+  videos_at_survey: 31
+  subscribers_at_survey: 5610
+  note: "No-code automation tutorials"
+
+- handle: "@simonscrapes"
+  name: "Simon Scrapes"
+  domain: ai_automation
+  authority_tier: practitioner
+  phase: subs5-ai-p1
+  videos_at_survey: 165
+  subscribers_at_survey: 95400
+  note: "Agentic systems, strong following"
+
+- handle: "@smartleadai"
+  name: "Smartlead"
+  domain: ai_automation
+  authority_tier: vendor_official
+  phase: subs5-ai-p1
+  videos_at_survey: 307
+  subscribers_at_survey: 34500
+  note: "AI sales automation platform"
+
+- handle: "@stackedpod"
+  name: "Stacked Podcast"
+  domain: ai_automation
+  authority_tier: practitioner
+  phase: subs5-ai-p1
+  videos_at_survey: 121
+  subscribers_at_survey: 7380
+  note: "Digital entrepreneurs building AI businesses"
+
+- handle: "@zenvanriel"
+  name: "Zen van Riel"
+  domain: ai_automation
+  authority_tier: practitioner
+  phase: subs5-ai-p1
+  videos_at_survey: 82
+  subscribers_at_survey: 48100
+  note: "Senior AI engineer teaching practical AI engineering and responsible deployment"
+
+# subs5-ai-p2: 34 channels, ~4,871 credits
+
+- handle: "@ClarenceNap"
+  name: "Clarence Nap"
+  domain: ai_automation
+  authority_tier: practitioner
+  phase: subs5-ai-p2
+  videos_at_survey: 8
+  subscribers_at_survey: 8240
+  note: "AI automation for sales/leads"
+
+- handle: "@DaraDenney"
+  name: "Dara Denney"
+  domain: ai_automation
+  authority_tier: practitioner
+  phase: subs5-ai-p2
+  videos_at_survey: 246
+  subscribers_at_survey: 142000
+  note: "Facebook Ads director, marketing automation"
+
+- handle: "@DataversityNetEDU"
+  name: "DATAVERSITY"
+  domain: ai_research
+  authority_tier: established_media
+  phase: subs5-ai-p2
+  videos_at_survey: 1190
+  subscribers_at_survey: 19100
+  note: "cap at 400 most recent — Data education platform, 1190 videos"
+
+- handle: "@EveryInc"
+  name: "Every"
+  domain: ai_automation
+  authority_tier: established_media
+  phase: subs5-ai-p2
+  videos_at_survey: 182
+  subscribers_at_survey: 46300
+  note: "AI publication with apps and training"
+
+- handle: "@Itssssss_Jack"
+  name: "Jack Roberts"
+  domain: ai_automation
+  authority_tier: practitioner
+  phase: subs5-ai-p2
+  videos_at_survey: 173
+  subscribers_at_survey: 261000
+  note: "AI automation expert, 7-figure business, established"
+
+- handle: "@JeredBlu"
+  name: "JeredBlu"
+  domain: ai_automation
+  authority_tier: practitioner
+  phase: subs5-ai-p2
+  videos_at_survey: 132
+  subscribers_at_survey: 13100
+  note: "Practitioner with clear AI/automation expertise and product strategy focus"
+
+- handle: "@RickMulready"
+  name: "Rick Mulready"
+  domain: ai_automation
+  authority_tier: practitioner
+  phase: subs5-ai-p2
+  videos_at_survey: 102
+  subscribers_at_survey: 118000
+  note: "AI adoption for business scaling"
+
+- handle: "@RomanPeschkeBusiness"
+  name: "Roman Peschke"
+  domain: ai_automation
+  authority_tier: practitioner
+  phase: subs5-ai-p2
+  videos_at_survey: 232
+  subscribers_at_survey: 838
+  note: "AI business building and scaling"
+
+- handle: "@TheNextNewThingAI"
+  name: "The Next New Thing"
+  domain: ai_automation
+  authority_tier: established_media
+  phase: subs5-ai-p2
+  videos_at_survey: 126
+  subscribers_at_survey: 44600
+  note: "AI startup interviews, established host"
+
+- handle: "@coreyganim"
+  name: "Corey Ganim"
+  domain: ai_automation
+  authority_tier: practitioner
+  phase: subs5-ai-p2
+  videos_at_survey: 67
+  subscribers_at_survey: 22800
+  note: "AI monetization for founders"
+
+- handle: "@emilsystems"
+  name: "Emil Faschang"
+  domain: ai_automation
+  authority_tier: practitioner
+  phase: subs5-ai-p2
+  videos_at_survey: 74
+  subscribers_at_survey: 2230
+  note: "AI automation for business and sales"
+
+- handle: "@godago"
+  name: "Goda Go"
+  domain: ai_automation
+  authority_tier: practitioner
+  phase: subs5-ai-p2
+  videos_at_survey: 104
+  subscribers_at_survey: 105000
+  note: "Claude AI training and prompt engineering"
+
+- handle: "@jaredrhod"
+  name: "jaredrhod"
+  domain: ai_automation
+  authority_tier: practitioner
+  phase: subs5-ai-p2
+  videos_at_survey: 44
+  subscribers_at_survey: 20100
+  note: "AI automation practitioner, daily Claude Code user"
+
+- handle: "@jonathanacuna"
+  name: "Jonathan Acuña - Doctor AI"
+  domain: ai_automation
+  authority_tier: practitioner
+  phase: subs5-ai-p2
+  videos_at_survey: 326
+  subscribers_at_survey: 32200
+  note: "AI implementation practitioner with focus on building with Claude"
+
+- handle: "@leadgenjay"
+  name: "Lead Gen Jay"
+  domain: ai_automation
+  authority_tier: practitioner
+  phase: subs5-ai-p2
+  videos_at_survey: 245
+  subscribers_at_survey: 87700
+  note: "Entrepreneur teaching AI and cold email automation for B2B"
+
+- handle: "@leonardogrig"
+  name: "Leonardo Grigorio | Build & Ship with AI"
+  domain: ai_automation
+  authority_tier: practitioner
+  phase: subs5-ai-p2
+  videos_at_survey: 104
+  subscribers_at_survey: 28400
+  note: "Hands-on AI builder teaching app development with AI"
+
+- handle: "@mattpocockuk"
+  name: "Matt Pocock"
+  domain: ai_automation
+  authority_tier: practitioner
+  phase: subs5-ai-p2
+  videos_at_survey: 143
+  subscribers_at_survey: 355000
+  note: "Technical AI educator with real engineering problems focus"
+
+- handle: "@natashatwillis"
+  name: "Natasha Willis"
+  domain: ai_automation
+  authority_tier: practitioner
+  phase: subs5-ai-p2
+  videos_at_survey: 40
+  subscribers_at_survey: 19900
+  note: "Founder teaching chatbot marketing automation"
+
+- handle: "@rkumarv"
+  name: "Ritesh Verma"
+  domain: ai_automation
+  authority_tier: practitioner
+  phase: subs5-ai-p2
+  videos_at_survey: 149
+  subscribers_at_survey: 63800
+  note: "AI business scaling, helping AI agencies grow"
+
+- handle: "@simeonkrstv"
+  name: "Simeon Krastev"
+  domain: ai_automation
+  authority_tier: practitioner
+  phase: subs5-ai-p2
+  videos_at_survey: 46
+  subscribers_at_survey: 3650
+  note: "AI infrastructure for businesses"
+
+- handle: "@CodeTradingCafe"
+  name: "CodeTrading"
+  domain: ai_research
+  authority_tier: practitioner
+  phase: subs5-ai-p2
+  videos_at_survey: 347
+  subscribers_at_survey: 124000
+  note: "ML/Python data science education"
+
+- handle: "@JohnWatsonRooney"
+  name: "John Watson Rooney"
+  domain: ai_automation
+  authority_tier: practitioner
+  phase: subs5-ai-p2
+  videos_at_survey: 276
+  subscribers_at_survey: 105000
+  note: "Programming educator with automation/web scraping focus"
+
+- handle: "@LeonPetrou"
+  name: "Leon Petrou"
+  domain: ai_automation
+  authority_tier: practitioner
+  phase: subs5-ai-p2
+  videos_at_survey: 55
+  subscribers_at_survey: 17100
+  note: "Automation expert teaching upskilling for professionals"
+
+- handle: "@MrPaidSocial"
+  name: "Mr. Paid Social"
+  domain: ai_automation
+  authority_tier: practitioner
+  phase: subs5-ai-p2
+  videos_at_survey: 31
+  subscribers_at_survey: 20400
+  note: "Advertising automation expertise with deep SME"
+
+- handle: "@YourAverageTechBro"
+  name: "Your Average Tech Bro"
+  domain: ai_automation
+  authority_tier: practitioner
+  phase: subs5-ai-p2
+  videos_at_survey: 128
+  subscribers_at_survey: 207000
+  note: "Individual engineer creating content on AI and software engineering practice"
+
+- handle: "@asapguide"
+  name: "AsapGuide"
+  domain: ai_automation
+  authority_tier: aggregator
+  phase: subs5-ai-p2
+  videos_at_survey: 2368
+  subscribers_at_survey: 24500
+  note: "cap at 400 most recent — Massive AI tutorial library (2368 videos) despite aggregator style"
+
+- handle: "@jasperhighlevel"
+  name: "Jasper Aiken"
+  domain: ai_automation
+  authority_tier: practitioner
+  phase: subs5-ai-p2
+  videos_at_survey: 188
+  subscribers_at_survey: 41900
+  note: "GoHighLevel automation expert, good coverage"
+
+- handle: "@jordanurbsAI"
+  name: "Jordan Urbs"
+  domain: ai_automation
+  authority_tier: practitioner
+  phase: subs5-ai-p2
+  videos_at_survey: 72
+  subscribers_at_survey: 13400
+  note: "Hands-on AI builder showing agent frameworks and real implementation"
+
+- handle: "@laurenbusiness"
+  name: "Lauren Tickner"
+  domain: ai_automation
+  authority_tier: practitioner
+  phase: subs5-ai-p2
+  videos_at_survey: 114
+  subscribers_at_survey: 40000
+  note: "AI and lead generation expert with business focus"
+
+- handle: "@mansel.scheffel"
+  name: "Mansel Scheffel"
+  domain: ai_automation
+  authority_tier: practitioner
+  phase: subs5-ai-p2
+  videos_at_survey: 107
+  subscribers_at_survey: 9760
+  note: "AI consultant teaching AI automation and consulting services"
+
+- handle: "@sneakpeekdesign"
+  name: "Sneak Peek"
+  domain: ai_automation
+  authority_tier: practitioner
+  phase: subs5-ai-p2
+  videos_at_survey: 61
+  subscribers_at_survey: 21700
+  note: "Design + AI, practical focus"
+
+- handle: "@JohnPeslarAi"
+  name: "John Peslar"
+  domain: ai_automation
+  authority_tier: practitioner
+  phase: subs5-ai-p2
+  videos_at_survey: 66
+  subscribers_at_survey: 772
+  note: "AI automation practitioner but very small channel"
+
+- handle: "@itslanasova"
+  name: "Lana Sova"
+  domain: ai_automation
+  authority_tier: practitioner
+  phase: subs5-ai-p2
+  videos_at_survey: 46
+  subscribers_at_survey: 2450
+  note: "AI-focused entrepreneur but smaller channel"
+
+- handle: "@lukefinance100"
+  name: "Luke Finance"
+  domain: ai_automation
+  authority_tier: practitioner
+  phase: subs5-ai-p2
+  videos_at_survey: 37
+  subscribers_at_survey: 25900
+  note: "Finance AI educator but smaller content volume"
+
+# subs5-entrepreneurship: 58 channels, ~16,239 credits
+
+- handle: "@CodieSanchezCT"
+  name: "Codie Sanchez"
+  domain: entrepreneurship
+  authority_tier: established_media
+  phase: subs5-entrepreneurship
+  videos_at_survey: 178
+  subscribers_at_survey: 2240000
+  note: "Scaling business systems, 2.2M subs"
+
+- handle: "@Foundr"
+  name: "Foundr "
+  domain: entrepreneurship
+  authority_tier: established_media
+  phase: subs5-entrepreneurship
+  videos_at_survey: 465
+  subscribers_at_survey: 318000
+  note: "Well-established founder and business media"
+
+- handle: "@NathanLatkawatch"
+  name: "Top Founders with Nathan Latka"
+  domain: entrepreneurship
+  authority_tier: established_media
+  phase: subs5-entrepreneurship
+  videos_at_survey: 2425
+  subscribers_at_survey: 43000
+  note: "cap at 400 most recent — SaaS founder interviews, 2425 videos"
+
+- handle: "@RobWalling"
+  name: "Rob Walling"
+  domain: entrepreneurship
+  authority_tier: practitioner
+  phase: subs5-entrepreneurship
+  videos_at_survey: 423
+  subscribers_at_survey: 125000
+  note: "SaaS founder and startup expertise"
+
+- handle: "@SimonSquibb"
+  name: "Simon Squibb"
+  domain: entrepreneurship
+  authority_tier: practitioner
+  phase: subs5-entrepreneurship
+  videos_at_survey: 280
+  subscribers_at_survey: 2430000
+  note: "Major creator, 19 businesses"
+
+- handle: "@TheDiaryOfACEO"
+  name: "The Diary Of A CEO"
+  domain: entrepreneurship
+  authority_tier: established_media
+  phase: subs5-entrepreneurship
+  videos_at_survey: 526
+  subscribers_at_survey: 19100000
+  note: "Established entrepreneurship media, high volume"
+
+- handle: "@sharran"
+  name: "Sharran Srivatsaa"
+  domain: entrepreneurship
+  authority_tier: practitioner
+  phase: subs5-entrepreneurship
+  videos_at_survey: 19
+  subscribers_at_survey: 197000
+  note: "Serial entrepreneur, five exits"
+
+- handle: "@ConsultingSuccessTV"
+  name: "Consulting Success"
+  domain: entrepreneurship
+  authority_tier: established_media
+  phase: subs5-entrepreneurship
+  videos_at_survey: 1202
+  subscribers_at_survey: 29700
+  note: "cap at 400 most recent — Consulting business platform"
+
+- handle: "@DavieFogarty"
+  name: "Davie Fogarty"
+  domain: entrepreneurship
+  authority_tier: practitioner
+  phase: subs5-entrepreneurship
+  videos_at_survey: 138
+  subscribers_at_survey: 927000
+  note: "Founder and entrepreneur, 927k subs"
+
+- handle: "@FounderLedRevenueGrowth"
+  name: "Founder-Led Revenue Growth"
+  domain: entrepreneurship
+  authority_tier: practitioner
+  phase: subs5-entrepreneurship
+  videos_at_survey: 315
+  subscribers_at_survey: 241000
+  note: "B2B revenue growth and founder sales training"
+
+- handle: "@GregLaVecchia"
+  name: "Greg Lav"
+  domain: entrepreneurship
+  authority_tier: practitioner
+  phase: subs5-entrepreneurship
+  videos_at_survey: 29
+  subscribers_at_survey: 85400
+  note: "Brand building and founder entrepreneurship"
+
+- handle: "@MyFirstMillionPod"
+  name: "My First Million"
+  domain: entrepreneurship
+  authority_tier: established_media
+  phase: subs5-entrepreneurship
+  videos_at_survey: 1130
+  subscribers_at_survey: 945000
+  note: "cap at 400 most recent — Major entrepreneurship voice, extensive catalog"
+
+- handle: "@RyanDanielMoran"
+  name: "Ryan Daniel Moran"
+  domain: entrepreneurship
+  authority_tier: practitioner
+  phase: subs5-entrepreneurship
+  videos_at_survey: 1002
+  subscribers_at_survey: 175000
+  note: "cap at 400 most recent — Established investor, 1000+ videos"
+
+- handle: "@colethomasgordon"
+  name: "Cole Gordon"
+  domain: entrepreneurship
+  authority_tier: practitioner
+  phase: subs5-entrepreneurship
+  videos_at_survey: 150
+  subscribers_at_survey: 49300
+  note: "Sales training, business coaching"
+
+- handle: "@gregoryjhickman"
+  name: "Greg Hickman"
+  domain: entrepreneurship
+  authority_tier: practitioner
+  phase: subs5-entrepreneurship
+  videos_at_survey: 470
+  subscribers_at_survey: 32900
+  note: "Agency and service business growth coaching"
+
+- handle: "@patflynn"
+  name: "Pat Flynn"
+  domain: entrepreneurship
+  authority_tier: practitioner
+  phase: subs5-entrepreneurship
+  videos_at_survey: 475
+  subscribers_at_survey: 485000
+  note: "Established passive income and online business"
+
+- handle: "@patrickdang"
+  name: "Patrick Dang"
+  domain: entrepreneurship
+  authority_tier: practitioner
+  phase: subs5-entrepreneurship
+  videos_at_survey: 365
+  subscribers_at_survey: 412000
+  note: "Online business and personal branding"
+
+- handle: "@JeremyMiner"
+  name: "Jeremy Miner"
+  domain: entrepreneurship
+  authority_tier: practitioner
+  phase: subs5-entrepreneurship
+  videos_at_survey: 575
+  subscribers_at_survey: 461000
+  note: "Sales training practitioner with clear entrepreneurship/business focus"
+
+- handle: "@JordanPlatten"
+  name: "Jordan Platten"
+  domain: entrepreneurship
+  authority_tier: practitioner
+  phase: subs5-entrepreneurship
+  videos_at_survey: 420
+  subscribers_at_survey: 397000
+  note: "Established agency owner with business/marketing expertise"
+
+- handle: "@MATGpod"
+  name: "Marketing Against the Grain"
+  domain: entrepreneurship
+  authority_tier: established_media
+  phase: subs5-entrepreneurship
+  videos_at_survey: 413
+  subscribers_at_survey: 97200
+  note: "Established marketing media from HubSpot executives"
+
+- handle: "@MalewiczHype"
+  name: "Malewicz"
+  domain: entrepreneurship
+  authority_tier: practitioner
+  phase: subs5-entrepreneurship
+  videos_at_survey: 416
+  subscribers_at_survey: 195000
+  note: "Experienced entrepreneur teaching design and company building"
+
+- handle: "@NeelDhingra"
+  name: "Neel Dhingra"
+  domain: entrepreneurship
+  authority_tier: practitioner
+  phase: subs5-entrepreneurship
+  videos_at_survey: 117
+  subscribers_at_survey: 45000
+  note: "Personal branding and business growth"
+
+- handle: "@NichePursuitsPodcast"
+  name: "Niche Pursuits Podcast"
+  domain: entrepreneurship
+  authority_tier: established_media
+  phase: subs5-entrepreneurship
+  videos_at_survey: 203
+  subscribers_at_survey: 10400
+  note: "Established entrepreneurship interview podcast"
+
+- handle: "@RaviAbuvala"
+  name: "Ravi Abuvala"
+  domain: entrepreneurship
+  authority_tier: practitioner
+  phase: subs5-entrepreneurship
+  videos_at_survey: 460
+  subscribers_at_survey: 108000
+  note: "Business scaling and systems expert"
+
+- handle: "@RichFromAnywhere"
+  name: "Rich From Anywhere"
+  domain: entrepreneurship
+  authority_tier: practitioner
+  phase: subs5-entrepreneurship
+  videos_at_survey: 226
+  subscribers_at_survey: 9940
+  note: "Marketing systems and scaling for business owners"
+
+- handle: "@RihabSeb"
+  name: "Rihab Seb - eCommerce Coach"
+  domain: entrepreneurship
+  authority_tier: practitioner
+  phase: subs5-entrepreneurship
+  videos_at_survey: 242
+  subscribers_at_survey: 27600
+  note: "eCommerce and Shopify optimization"
+
+- handle: "@SunnyLenarduzzi"
+  name: "Sunny Lenarduzzi"
+  domain: entrepreneurship
+  authority_tier: practitioner
+  phase: subs5-entrepreneurship
+  videos_at_survey: 556
+  subscribers_at_survey: 777000
+  note: "Online course creation and business scaling"
+
+- handle: "@TheCompaniesExpert"
+  name: "The Companies Expert"
+  domain: entrepreneurship
+  authority_tier: practitioner
+  phase: subs5-entrepreneurship
+  videos_at_survey: 584
+  subscribers_at_survey: 572000
+  note: "Business management and growth, 584 videos"
+
+- handle: "@TheRossHarkness"
+  name: "Ross Harkness"
+  domain: entrepreneurship
+  authority_tier: practitioner
+  phase: subs5-entrepreneurship
+  videos_at_survey: 146
+  subscribers_at_survey: 71800
+  note: "Business systems and operationalization"
+
+- handle: "@VickyZhaoBEEAMP"
+  name: "Vicky Zhao"
+  domain: entrepreneurship
+  authority_tier: practitioner
+  phase: subs5-entrepreneurship
+  videos_at_survey: 183
+  subscribers_at_survey: 298000
+  note: "Business/entrepreneurship frameworks"
+
+- handle: "@askmichia"
+  name: "Michia Rohrssen"
+  domain: entrepreneurship
+  authority_tier: practitioner
+  phase: subs5-entrepreneurship
+  videos_at_survey: 87
+  subscribers_at_survey: 107000
+  note: "Founder and investor perspective, startup focus"
+
+- handle: "@daviefogartymentors"
+  name: "Davie Fogarty Mentors"
+  domain: entrepreneurship
+  authority_tier: practitioner
+  phase: subs5-entrepreneurship
+  videos_at_survey: 39
+  subscribers_at_survey: 31100
+  note: "E-commerce education from founder"
+
+- handle: "@firmsconsulting"
+  name: "firmsconsulting"
+  domain: entrepreneurship
+  authority_tier: practitioner
+  phase: subs5-entrepreneurship
+  videos_at_survey: 695
+  subscribers_at_survey: 54700
+  note: "Business strategy and management consulting"
+
+- handle: "@graceandrewsss"
+  name: "Grace Andrews"
+  domain: entrepreneurship
+  authority_tier: practitioner
+  phase: subs5-entrepreneurship
+  videos_at_survey: 55
+  subscribers_at_survey: 21900
+  note: "Creator entrepreneur building journey documentation"
+
+- handle: "@iampauljames"
+  name: "iampauljames"
+  domain: entrepreneurship
+  authority_tier: practitioner
+  phase: subs5-entrepreneurship
+  videos_at_survey: 801
+  subscribers_at_survey: 344000
+  note: "cap at 400 most recent — Large creator covering business and online monetization"
+
+- handle: "@joanna-wiebe"
+  name: "Joanna Wiebe"
+  domain: entrepreneurship
+  authority_tier: practitioner
+  phase: subs5-entrepreneurship
+  videos_at_survey: 224
+  subscribers_at_survey: 128000
+  note: "Established copywriting practitioner with business/marketing focus"
+
+- handle: "@jun_yuh"
+  name: "Jun Yuh"
+  domain: entrepreneurship
+  authority_tier: practitioner
+  phase: subs5-entrepreneurship
+  videos_at_survey: 107
+  subscribers_at_survey: 739000
+  note: "Creator entrepreneur with personal branding and business strategy focus"
+
+- handle: "@marketingschoolpod"
+  name: "Marketing School - Daily Marketing Tips"
+  domain: entrepreneurship
+  authority_tier: established_media
+  phase: subs5-entrepreneurship
+  videos_at_survey: 856
+  subscribers_at_survey: 15500
+  note: "cap at 400 most recent — Established marketing media with extensive content library"
+
+- handle: "@nicolascole77"
+  name: "Nicolas Cole"
+  domain: entrepreneurship
+  authority_tier: practitioner
+  phase: subs5-entrepreneurship
+  videos_at_survey: 228
+  subscribers_at_survey: 63900
+  note: "Proven online writing and content entrepreneur"
+
+- handle: "@openresidency"
+  name: "Open Residency"
+  domain: entrepreneurship
+  authority_tier: established_media
+  phase: subs5-entrepreneurship
+  videos_at_survey: 39
+  subscribers_at_survey: 76200
+  note: "Business scaling and operations interview show"
+
+- handle: "@perrybelcher"
+  name: "Perry Belcher"
+  domain: entrepreneurship
+  authority_tier: practitioner
+  phase: subs5-entrepreneurship
+  videos_at_survey: 216
+  subscribers_at_survey: 23100
+  note: "Seasoned entrepreneur, business/sales/VC experience"
+
+- handle: "@realmattgray"
+  name: "Matt Gray"
+  domain: entrepreneurship
+  authority_tier: practitioner
+  phase: subs5-entrepreneurship
+  videos_at_survey: 191
+  subscribers_at_survey: 287000
+  note: "Founder teaching business systems and growth strategies"
+
+- handle: "@solofounding"
+  name: "Solo Founders"
+  domain: entrepreneurship
+  authority_tier: practitioner
+  phase: subs5-entrepreneurship
+  videos_at_survey: 31
+  subscribers_at_survey: 13300
+  note: "Solo founder interviews weekly"
+
+- handle: "@CindysGotSystems"
+  name: "Cindy's Got Systems"
+  domain: entrepreneurship
+  authority_tier: practitioner
+  phase: subs5-entrepreneurship
+  videos_at_survey: 23
+  subscribers_at_survey: 14000
+  note: "Solopreneur business systems"
+
+- handle: "@DanGalletta"
+  name: "Dan Galletta"
+  domain: entrepreneurship
+  authority_tier: practitioner
+  phase: subs5-entrepreneurship
+  videos_at_survey: 64
+  subscribers_at_survey: 59900
+  note: "Management/strategy consulting"
+
+- handle: "@FirmLearning"
+  name: "Firm Learning"
+  domain: entrepreneurship
+  authority_tier: practitioner
+  phase: subs5-entrepreneurship
+  videos_at_survey: 198
+  subscribers_at_survey: 261000
+  note: "Career and business skills education"
+
+- handle: "@JulianGoldieSEO"
+  name: "Julian Goldie SEO"
+  domain: entrepreneurship
+  authority_tier: practitioner
+  phase: subs5-entrepreneurship
+  videos_at_survey: 3000
+  subscribers_at_survey: 419000
+  note: "cap at 400 most recent — Established SEO educator with extensive content on business/marketing growth"
+
+- handle: "@MattLoui"
+  name: "Matt Loui"
+  domain: entrepreneurship
+  authority_tier: practitioner
+  phase: subs5-entrepreneurship
+  videos_at_survey: 104
+  subscribers_at_survey: 220000
+  note: "Digital entrepreneur teaching video editing and passive income"
+
+- handle: "@MatthewRyder"
+  name: "Matthew Ryder"
+  domain: entrepreneurship
+  authority_tier: practitioner
+  phase: subs5-entrepreneurship
+  videos_at_survey: 765
+  subscribers_at_survey: 31300
+  note: "Established sales trainer with extensive content"
+
+- handle: "@MeetKevin"
+  name: "Meet Kevin"
+  domain: entrepreneurship
+  authority_tier: practitioner
+  phase: subs5-entrepreneurship
+  videos_at_survey: 3000
+  subscribers_at_survey: 2050000
+  note: "cap at 400 most recent — Established real estate and finance educator with huge content library"
+
+- handle: "@SubClubPodcast"
+  name: "Sub Club by RevenueCat"
+  domain: entrepreneurship
+  authority_tier: established_media
+  phase: subs5-entrepreneurship
+  videos_at_survey: 164
+  subscribers_at_survey: 6120
+  note: "App business growth interviews, 164 videos"
+
+- handle: "@TheJonathanStark"
+  name: "Jonathan Stark"
+  domain: entrepreneurship
+  authority_tier: practitioner
+  phase: subs5-entrepreneurship
+  videos_at_survey: 705
+  subscribers_at_survey: 13700
+  note: "Established freelance/consulting practitioner with strong content volume"
+
+- handle: "@TomYoungsChannel"
+  name: "Tom Youngs"
+  domain: entrepreneurship
+  authority_tier: practitioner
+  phase: subs5-entrepreneurship
+  videos_at_survey: 177
+  subscribers_at_survey: 39600
+  note: "Creator business scaling expert"
+
+- handle: "@ClimbVSC"
+  name: "CLIMB by VSC"
+  domain: entrepreneurship
+  authority_tier: aggregator
+  phase: subs5-entrepreneurship
+  videos_at_survey: 108
+  subscribers_at_survey: 2980
+  note: "Startup scaling interviews"
+
+- handle: "@MichaelGardinerB2B"
+  name: "Michael Gardiner - B2B Strategies "
+  domain: entrepreneurship
+  authority_tier: practitioner
+  phase: subs5-entrepreneurship
+  videos_at_survey: 180
+  subscribers_at_survey: 5510
+  note: "Agency growth and outbound strategy content"
+
+- handle: "@diandraescobarr"
+  name: "Diandra Escobar"
+  domain: entrepreneurship
+  authority_tier: practitioner
+  phase: subs5-entrepreneurship
+  videos_at_survey: 15
+  subscribers_at_survey: 10700
+  note: "Content-led business growth strategy"
+
+- handle: "@starterstory"
+  name: "Starter Story"
+  domain: entrepreneurship
+  authority_tier: established_media
+  phase: subs5-entrepreneurship
+  videos_at_survey: 179
+  subscribers_at_survey: 865000
+  note: "Startup ideas and strategies, 179 videos"
+
+- handle: "@TessBarclay"
+  name: "Tess Barclay | Busy Blooming"
+  domain: entrepreneurship
+  authority_tier: established_media
+  phase: subs5-entrepreneurship
+  videos_at_survey: 71
+  subscribers_at_survey: 109000
+  note: "Creator economy and growth, 71 videos"
+
+# subs5-personal: 41 channels, ~13,919 credits
+
+- handle: "@DanKoeTalks"
+  name: "Dan Koe"
+  domain: personal_development
+  authority_tier: established_media
+  phase: subs5-personal
+  videos_at_survey: 164
+  subscribers_at_survey: 1410000
+  note: "Self-improvement, online business"
+
+- handle: "@Doctorly"
+  name: "Doctorly"
+  domain: personal_development
+  authority_tier: established_media
+  phase: subs5-personal
+  videos_at_survey: 284
+  subscribers_at_survey: 3580000
+  note: "Dermatology and health education"
+
+- handle: "@DrChatterjeeRangan"
+  name: "Dr Rangan Chatterjee"
+  domain: personal_development
+  authority_tier: established_media
+  phase: subs5-personal
+  videos_at_survey: 733
+  subscribers_at_survey: 1350000
+  note: "Health expert, bestselling author"
+
+- handle: "@DrWilliamLi"
+  name: "Dr. William Li"
+  domain: personal_development
+  authority_tier: established_media
+  phase: subs5-personal
+  videos_at_survey: 416
+  subscribers_at_survey: 970000
+  note: "Physician-scientist, health and longevity"
+
+- handle: "@GlucoseRevolution"
+  name: "Glucose Revolution"
+  domain: personal_development
+  authority_tier: practitioner
+  phase: subs5-personal
+  videos_at_survey: 49
+  subscribers_at_survey: 1870000
+  note: "Health optimization and metabolic education"
+
+- handle: "@PeterAttiaMD"
+  name: "Peter Attia MD"
+  domain: personal_development
+  authority_tier: practitioner
+  phase: subs5-personal
+  videos_at_survey: 1383
+  subscribers_at_survey: 1030000
+  note: "cap at 400 most recent — Longevity and health optimization expertise"
+
+- handle: "@Physionic"
+  name: "Physionic"
+  domain: personal_development
+  authority_tier: practitioner
+  phase: subs5-personal
+  videos_at_survey: 655
+  subscribers_at_survey: 395000
+  note: "Science-backed health and physiology content"
+
+- handle: "@psychacks"
+  name: "Orion Taraban"
+  domain: personal_development
+  authority_tier: practitioner
+  phase: subs5-personal
+  videos_at_survey: 685
+  subscribers_at_survey: 1020000
+  note: "Established psychology practitioner, large audience"
+
+- handle: "@DhruPurohit"
+  name: "Dhru Purohit"
+  domain: personal_development
+  authority_tier: practitioner
+  phase: subs5-personal
+  videos_at_survey: 507
+  subscribers_at_survey: 636000
+  note: "Health and longevity expert interviews"
+
+- handle: "@HighIntegritySkills"
+  name: "High Integrity Skills"
+  domain: personal_development
+  authority_tier: practitioner
+  phase: subs5-personal
+  videos_at_survey: 555
+  subscribers_at_survey: 81800
+  note: "Social skills and communication training"
+
+- handle: "@JeremyEthier"
+  name: "Jeremy Ethier"
+  domain: personal_development
+  authority_tier: practitioner
+  phase: subs5-personal
+  videos_at_survey: 312
+  subscribers_at_survey: 7880000
+  note: "Established fitness/health educator aligned with self-optimization angle of corpus"
+
+- handle: "@OliviaTheLifeCoach"
+  name: "Olivia Chevallier "
+  domain: personal_development
+  authority_tier: practitioner
+  phase: subs5-personal
+  videos_at_survey: 75
+  subscribers_at_survey: 12400
+  note: "Confidence and personal development coaching"
+
+- handle: "@Philipp-Humm"
+  name: "Philipp Humm"
+  domain: personal_development
+  authority_tier: practitioner
+  phase: subs5-personal
+  videos_at_survey: 113
+  subscribers_at_survey: 273000
+  note: "Business communication and storytelling coaching"
+
+- handle: "@askvinh"
+  name: "Vinh Giang"
+  domain: personal_development
+  authority_tier: practitioner
+  phase: subs5-personal
+  videos_at_survey: 392
+  subscribers_at_survey: 4890000
+  note: "Communication skills expert"
+
+- handle: "@drgracelee"
+  name: "Dr. Grace Lee"
+  domain: personal_development
+  authority_tier: practitioner
+  phase: subs5-personal
+  videos_at_survey: 404
+  subscribers_at_survey: 473000
+  note: "Neuroscientist and executive mentor"
+
+- handle: "@drmaryclaire"
+  name: "Dr. Mary Claire Haver, MD"
+  domain: personal_development
+  authority_tier: established_media
+  phase: subs5-personal
+  videos_at_survey: 271
+  subscribers_at_survey: 674000
+  note: "OB-GYN, women's health education"
+
+- handle: "@ArtofAccomplishment"
+  name: "Joe Hudson | Art of Accomplishment"
+  domain: personal_development
+  authority_tier: practitioner
+  phase: subs5-personal
+  videos_at_survey: 361
+  subscribers_at_survey: 159000
+  note: "Established personal development coach with substantial content"
+
+- handle: "@ChrisRaynorMD"
+  name: "Dr. Chris Raynor | Not Your Everyday Ortho"
+  domain: personal_development
+  authority_tier: established_media
+  phase: subs5-personal
+  videos_at_survey: 473
+  subscribers_at_survey: 717000
+  note: "Surgeon, medical education 717k subs"
+
+- handle: "@DrThomasSmithyman"
+  name: "Dr Thomas Smithyman "
+  domain: personal_development
+  authority_tier: practitioner
+  phase: subs5-personal
+  videos_at_survey: 96
+  subscribers_at_survey: 139000
+  note: "Clinical psychologist, social skills"
+
+- handle: "@FlourishwithLaurin"
+  name: "Flourish with Laurin "
+  domain: personal_development
+  authority_tier: practitioner
+  phase: subs5-personal
+  videos_at_survey: 78
+  subscribers_at_survey: 542000
+  note: "Mindset and personal development coaching"
+
+- handle: "@HayleyQuinn"
+  name: "Hayley Quinn"
+  domain: personal_development
+  authority_tier: practitioner
+  phase: subs5-personal
+  videos_at_survey: 583
+  subscribers_at_survey: 112000
+  note: "Dating and social skills coaching"
+
+- handle: "@JoshBridgmanfitness"
+  name: "Josh Bridgman"
+  domain: personal_development
+  authority_tier: practitioner
+  phase: subs5-personal
+  videos_at_survey: 854
+  subscribers_at_survey: 121000
+  note: "cap at 400 most recent — Established fitness coach with health/hormone optimization focus"
+
+- handle: "@JustinSung"
+  name: "Justin Sung"
+  domain: personal_development
+  authority_tier: practitioner
+  phase: subs5-personal
+  videos_at_survey: 235
+  subscribers_at_survey: 2200000
+  note: "Established learning coach with health background teaching efficiency"
+
+- handle: "@KimFosterMD"
+  name: "Kim Foster, M.D."
+  domain: personal_development
+  authority_tier: practitioner
+  phase: subs5-personal
+  videos_at_survey: 342
+  subscribers_at_survey: 293000
+  note: "Established practitioner with medical background teaching reinvention and personal devel"
+
+- handle: "@MindvalleyTalks"
+  name: "Mindvalley Talks"
+  domain: personal_development
+  authority_tier: established_media
+  phase: subs5-personal
+  videos_at_survey: 533
+  subscribers_at_survey: 1600000
+  note: "Major personal growth platform, large reach"
+
+- handle: "@OnPointFresh"
+  name: "OnPointFresh"
+  domain: personal_development
+  authority_tier: practitioner
+  phase: subs5-personal
+  videos_at_survey: 120
+  subscribers_at_survey: 655000
+  note: "Established men's personal development channel"
+
+- handle: "@ThePrimal_Fitness"
+  name: "RAFAEL MOTLOCH"
+  domain: personal_development
+  authority_tier: practitioner
+  phase: subs5-personal
+  videos_at_survey: 244
+  subscribers_at_survey: 186000
+  note: "Fitness and mindset coaching"
+
+- handle: "@linkingyourthinking"
+  name: "Linking Your Thinking with Nick Milo"
+  domain: personal_development
+  authority_tier: practitioner
+  phase: subs5-personal
+  videos_at_survey: 143
+  subscribers_at_survey: 368000
+  note: "Established PKM educator with productivity and knowledge management focus"
+
+- handle: "@JayShettyPodcast."
+  name: "Jay Shetty Podcast"
+  domain: personal_development
+  authority_tier: established_media
+  phase: subs5-personal
+  videos_at_survey: 551
+  subscribers_at_survey: 5930000
+  note: "Major wellness voice, valuable comparative perspective"
+
+- handle: "@JessicaOS"
+  name: "Jessica Os"
+  domain: personal_development
+  authority_tier: practitioner
+  phase: subs5-personal
+  videos_at_survey: 659
+  subscribers_at_survey: 1720000
+  note: "Established relationship coach with 1.7M subs and substantial content library"
+
+- handle: "@JonniShreve"
+  name: "JONNI SHREVE"
+  domain: personal_development
+  authority_tier: practitioner
+  phase: subs5-personal
+  videos_at_survey: 1285
+  subscribers_at_survey: 625000
+  note: "cap at 400 most recent — Established fitness figure with health/optimization focus"
+
+- handle: "@KennyFischer"
+  name: "Kenny Fischer"
+  domain: personal_development
+  authority_tier: practitioner
+  phase: subs5-personal
+  videos_at_survey: 226
+  subscribers_at_survey: 13900
+  note: "Fitness nutrition educator with health optimization focus"
+
+- handle: "@ModernIntimacy"
+  name: "Dr. Kate Balestrieri + Modern Intimacy"
+  domain: personal_development
+  authority_tier: established_media
+  phase: subs5-personal
+  videos_at_survey: 275
+  subscribers_at_survey: 12300
+  note: "Sex therapist, mental health and relationships"
+
+- handle: "@TheAnatomyOfADream"
+  name: "The Anatomy of a Dream"
+  domain: personal_development
+  authority_tier: established_media
+  phase: subs5-personal
+  videos_at_survey: 25
+  subscribers_at_survey: 57800
+  note: "Success mindset and dream achievement"
+
+- handle: "@kimberlynhill"
+  name: "Kimberly Hill - Men's Dating & Relationship Coach"
+  domain: personal_development
+  authority_tier: practitioner
+  phase: subs5-personal
+  videos_at_survey: 130
+  subscribers_at_survey: 81100
+  note: "Certified relationship coach with established presence"
+
+- handle: "@JessicaJDating"
+  name: "Jessica J Dating"
+  domain: personal_development
+  authority_tier: practitioner
+  phase: subs5-personal
+  videos_at_survey: 752
+  subscribers_at_survey: 147000
+  note: "Social skills coaching aligned with personal_development but narrow niche"
+
+- handle: "@LunaMontana"
+  name: "Luna Montana"
+  domain: personal_development
+  authority_tier: practitioner
+  phase: subs5-personal
+  videos_at_survey: 301
+  subscribers_at_survey: 814000
+  note: "Established creator with mental health and personal development focus"
+
+- handle: "@justapproach007"
+  name: "Just Approach!"
+  domain: personal_development
+  authority_tier: practitioner
+  phase: subs5-personal
+  videos_at_survey: 213
+  subscribers_at_survey: 13700
+  note: "Social skills coach but narrow niche around dating/confidence"
+
+- handle: "@CordeliaKate"
+  name: "Cordelia Kate"
+  domain: personal_development
+  authority_tier: practitioner
+  phase: subs5-personal
+  videos_at_survey: 44
+  subscribers_at_survey: 847
+  note: "AI-enhanced productivity systems"
+
+- handle: "@realbenjaminseda"
+  name: "Benjamin Seda"
+  domain: personal_development
+  authority_tier: practitioner
+  phase: subs5-personal
+  videos_at_survey: 505
+  subscribers_at_survey: 1480000
+  note: "Dating and relationships coaching with large following despite niche focus"
+
+- handle: "@AlexeyWelsh"
+  name: "Alexey Welsh"
+  domain: personal_development
+  authority_tier: practitioner
+  phase: subs5-personal
+  videos_at_survey: 215
+  subscribers_at_survey: 210000
+  note: "Sex education and coaching fits personal development but narrowly scoped"

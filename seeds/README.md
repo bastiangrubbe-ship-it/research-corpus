@@ -1,6 +1,6 @@
 # Channel seeds
 
-`youtube_channels.yaml` is the ingestion seed list: 155 channels, verified against
+`youtube_channels.yaml` is the ingestion seed list: 336 channels, verified against
 the live Supadata and yt-dlp APIs (never guessed from a display name or a listicle),
 deduplicated by handle, classified by `domain` and `authority_tier`.
 
@@ -16,6 +16,17 @@ Full backfill is **~63,300 credits — 2.1 months** at the 30,000/month budget.
 | `automation` | 46 | 11,925 | 1.12 mo |
 | `research-p2` | 36 | 29,712 | 2.11 mo |
 | `research-p3-deferred` | 1 (AWS) | — | not counted |
+| `subs5-ai-p1` | 29 | ~7,800 | — |
+| `subs5-ai-p2` | 34 | ~6,000 | — |
+| `subs5-entrepreneurship` | 58 | ~17,900 | — |
+| `subs5-personal` | 41 | ~9,500 | — |
+
+The `subs5-*` phases (2026-08-27) are 162 channels classified `recommend: true` in
+round four and left out then purely on cost. Adding them here spends nothing — `phase`
+is the ramp. Uncapped they are 58,519 credits; capping the 15 channels over 800 videos
+at 400 most recent brings it to ~41,200. Ordered so the domains this corpus exists for
+come first: AI research/automation by classifier confidence, then entrepreneurship,
+then personal development.
 
 Ingest in phase order. `research-p3-deferred` (AWS, 18,000 videos) is never ingested
 by channel — pull specific re:Invent or product-announcement playlists instead, or it
@@ -27,6 +38,10 @@ Two channels are large enough relative to their own tier that a full backfill wo
 be mostly repetition: `@bigthink` (9,603 videos → cap at 300 most recent) and
 `@asapguide` (2,366 → cap at 200). The cap is recorded in each row's `note`; the
 ingestion pipeline (step 3) must read and respect it, not just `videos_at_survey`.
+
+The `subs5-*` round adds 15 more over 800 videos, capped at 400 most recent on the
+same reasoning — they carry 40% of that round's cost between them. Same rule applies:
+the cap lives in `note` and the pipeline must honour it.
 
 ## Regenerating
 
