@@ -113,6 +113,8 @@ Read when the work calls for them, not by default.
   *criteria*, not the build order: it defines the ten spec queries and the kill criterion
   that decide whether this corpus is worth keeping. Those ten queries no longer exist as
   text, so step 0 is still blocked — see the header there
+- `docs/FEDERATION.md` — how this corpus relates to realtime search (web, Reddit, X) when
+  driven from inside Claude, and why the fan-out layer is deliberately *not* built here
 - `docs/SUPADATA.md` — the confirmed Supadata API schema and what it does *not* provide
 - `docs/SCHEMA.md` — table-by-table design notes and the RLS mechanics
 - `docs/DECISIONS.md` — what was chosen, what was rejected, and why
