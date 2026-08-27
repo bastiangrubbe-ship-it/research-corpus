@@ -42,6 +42,13 @@ class Settings(BaseSettings):
     # entities), authenticated via CLAUDE_CODE_OAUTH_TOKEN — a subscription login,
     # not a metered API key — which the CLI itself reads from the environment.
     # "haiku" is the Claude Code CLI's model alias, not an Anthropic API model ID.
+    #: Records what is asked of the corpus so weak coverage accumulates into a
+    #: sourcing backlog instead of evaporating with each response. On by default
+    #: because the corpus cannot otherwise learn what it is missing; set false to stop
+    #: writing. These rows are the most sensitive data here — the transcripts are
+    #: public, the queries are what you are investigating (see db.models.QueryLog).
+    log_queries: bool = Field(True, alias="CORPUS_LOG_QUERIES")
+
     entity_extraction_model: str = Field("haiku", alias="ENTITY_EXTRACTION_MODEL")
     entity_extraction_timeout_s: float = Field(120.0, alias="ENTITY_EXTRACTION_TIMEOUT_S")
 

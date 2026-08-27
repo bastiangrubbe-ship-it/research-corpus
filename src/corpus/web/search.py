@@ -58,6 +58,7 @@ def search(
                 top_k=top_k,
                 candidate_pool=candidate_pool,
                 rerank=rerank,
+                surface="web",
             )
     except ToolError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

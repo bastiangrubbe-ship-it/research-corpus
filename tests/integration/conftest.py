@@ -103,6 +103,16 @@ def seeded(migrate_engine: Engine, tenants: dict[str, uuid.UUID]) -> Iterator[di
                 ),
                 {"id": chunk, "t": tid, "doc": doc, "tv": tv, "txt": f"chunk text {key}"},
             )
+            # query_log carries what the operator searched for, which is more sensitive
+            # than any transcript in the corpus. Seeded per tenant so the isolation
+            # test asserts against real rows rather than passing on an empty table.
+            conn.execute(
+                text(
+                    "INSERT INTO query_log (tenant_id, tool, surface, query_text, "
+                    " coverage_grade) VALUES (:t, 'coverage', 'mcp', :q, 'thin')"
+                ),
+                {"t": tid, "q": f"confidential query {key}"},
+            )
             conn.execute(
                 text(
                     "INSERT INTO chunk_embedding (chunk_id, tenant_id, model_version, embedding) "

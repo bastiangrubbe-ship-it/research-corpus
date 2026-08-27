@@ -82,6 +82,10 @@ could not tell" is a different claim from a guess, and the column records which.
   as complete.
 - **MCP** exposes all five tools: `corpus_search`, `corpus_analytics`,
   `corpus_coverage`, `corpus_synthesize`, `corpus_provenance`.
+- **Query logging** (`query_log`, on by default) records what was asked and how
+  coverage graded it, so repeated weak coverage becomes a sourcing backlog rather than
+  evaporating per response — `analytics/query_insights.py`. It is the most sensitive
+  table here; `CORPUS_LOG_QUERIES=false` disables it.
 - **The dashboard** (`web/`, backed by `src/corpus/web/`) has 13 panels covering all
   of the above plus the original ingestion controls — see `web/README.md`.
 

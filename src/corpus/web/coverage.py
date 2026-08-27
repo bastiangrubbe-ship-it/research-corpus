@@ -11,17 +11,15 @@ not something to fire on keystroke.
 
 from __future__ import annotations
 
-from dataclasses import asdict
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
 from mcp.server.mcpserver.exceptions import ToolError
 
-from corpus.analytics.coverage import assess_coverage
 from corpus.config import get_settings
-from corpus.db.enums import Domain
 from corpus.db.session import tenant_session
 from corpus.ingest.runner import resolve_tenant_id
+from corpus.mcp.tools import corpus_coverage
 
 router = APIRouter(prefix="/api", tags=["coverage"])
 
@@ -31,27 +29,20 @@ def coverage(
     query: str = Query(..., min_length=1),
     domain: str | None = None,
 ) -> dict[str, Any]:
+    """Delegates to `corpus.mcp.tools.corpus_coverage` rather than calling
+    `assess_coverage` directly, as it used to.
+
+    That indirection buys one thing worth having: a single place where a coverage
+    verdict is written to `query_log`. Two call sites would mean the dashboard's
+    verdicts silently missing from the sourcing backlog, which is exactly the kind of
+    partial record that reads as complete.
+    """
     settings = get_settings()
     tenant_id = resolve_tenant_id(settings)
-
-    domain_enum: Domain | None = None
-    if domain:
-        try:
-            domain_enum = Domain(domain)
-        except ValueError as exc:
-            valid = ", ".join(d.value for d in Domain)
-            raise HTTPException(
-                status_code=400, detail=f"unknown domain {domain!r}; valid values: {valid}"
-            ) from exc
-
     try:
         with tenant_session(tenant_id) as session:
-            report = assess_coverage(session, tenant_id=tenant_id, query=query, domain=domain_enum)
+            return corpus_coverage(
+                session, tenant_id=tenant_id, query=query, domain=domain, surface="web"
+            )
     except ToolError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-    payload = asdict(report)
-    # dataclass tuples serialize as JSON arrays; dates need explicit isoformat.
-    payload["date_earliest"] = report.date_earliest.isoformat() if report.date_earliest else None
-    payload["date_latest"] = report.date_latest.isoformat() if report.date_latest else None
-    return payload

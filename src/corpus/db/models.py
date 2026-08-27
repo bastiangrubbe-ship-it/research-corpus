@@ -449,6 +449,58 @@ class Heartbeat(Base, TenantScoped):
     detail: Mapped[str | None] = mapped_column(Text)
 
 
+class QueryLog(Base, TenantScoped):
+    """What was asked of this corpus, and what it managed to answer.
+
+    Exists to close the loop the corpus otherwise cannot: nothing else records that a
+    question was asked and answered badly. `corpus_coverage` grades a topic on demand,
+    but that verdict evaporates with the response — so "this corpus graded `thin` on
+    robotics fourteen times" is a sourcing decision nobody could previously make.
+
+    Two consumers, both in `corpus.analytics.query_insights`:
+
+    * a **sourcing backlog** — repeated weak coverage on a topic is evidence of what
+      to ingest next, which is where this corpus's real headroom is. Measured
+      retrieval headroom is +/-0.05; the gaps are whole topics.
+    * a **step-0 proxy** — every `thin`/`none` on a real query is a recorded instance
+      of this corpus failing to earn its keep, with the query text attached. Weaker
+      than the build plan's web-search baseline, but it accumulates automatically and
+      it is honest (docs/BUILD_PLAN.md, docs/FEDERATION.md).
+
+    **This is the most sensitive table here.** The transcripts are public; these rows
+    are what *you* are investigating — client prep, prospect research, positioning.
+    They stay under RLS like everything else, never leave `$PROJECT_DATA_DIR`, and
+    logging is disabled by setting `CORPUS_LOG_QUERIES=false`. `purge_queries` deletes
+    on demand.
+
+    `answered_well` is deliberately nullable rather than defaulted: for a search we
+    only know the result count, not whether it helped, and recording a guess as a
+    fact is the failure mode this schema keeps refusing (cf. `is_auto_generated`).
+    """
+
+    __tablename__ = "query_log"
+
+    id: Mapped[uuid.UUID] = _pk()
+    tool: Mapped[str] = mapped_column(String(32), nullable=False)
+    surface: Mapped[str] = mapped_column(String(16), nullable=False)
+    query_text: Mapped[str] = mapped_column(Text, nullable=False)
+    domain: Mapped[str | None] = mapped_column(String(32))
+
+    result_count: Mapped[int | None] = mapped_column(Integer)
+    top_document_ids: Mapped[list[uuid.UUID] | None] = mapped_column(ARRAY(UUID(as_uuid=True)))
+
+    #: Set only by coverage calls: none/thin/partial/good.
+    coverage_grade: Mapped[str | None] = mapped_column(String(16))
+    #: Index completeness *at the time of the call* — without it a historical `none`
+    #: cannot be told apart from "the index was half-built that day".
+    indexed_documents: Mapped[int | None] = mapped_column(Integer)
+    total_documents: Mapped[int | None] = mapped_column(Integer)
+
+    latency_ms: Mapped[int | None] = mapped_column(Integer)
+    answered_well: Mapped[bool | None] = mapped_column(Boolean)
+    created_at: Mapped[dt.datetime] = _now()
+
+
 class PurgeLog(Base, TenantScoped):
     __tablename__ = "purge_log"
 

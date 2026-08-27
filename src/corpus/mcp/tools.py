@@ -18,6 +18,7 @@ place it could be gotten wrong instead of one per tool.
 from __future__ import annotations
 
 import datetime as dt
+import time
 import uuid
 from typing import Literal
 
@@ -28,6 +29,7 @@ from sqlalchemy.orm import Session
 from corpus.analytics import diffusion, drift, emergence, saturation, velocity
 from corpus.db.enums import Domain
 from corpus.db.models import Document, Entity, EntityMention, Source, TranscriptVersion
+from corpus.db.query_log import record_query
 from corpus.retrieval.search import hybrid_search
 
 
@@ -109,6 +111,7 @@ def corpus_search(
     top_k: int = 10,
     candidate_pool: int = 50,
     rerank: bool = True,
+    surface: str = "mcp",
 ) -> list[dict]:
     """Hybrid search (lexical + dense + RRF fusion + cross-encoder rerank) over the
     corpus. Returns ranked results with enough metadata to cite or follow up on —
@@ -128,6 +131,7 @@ def corpus_search(
     recall for responsiveness, rather than having that tradeoff made for them here.
     """
     domain_enum = _parse_domain(domain)
+    started = time.monotonic()
     hits = hybrid_search(
         session,
         tenant_id=tenant_id,
@@ -136,6 +140,17 @@ def corpus_search(
         top_k=top_k,
         candidate_pool=candidate_pool,
         rerank=rerank,
+    )
+    record_query(
+        session,
+        tenant_id=tenant_id,
+        tool="search",
+        surface=surface,
+        query_text=query,
+        domain=domain,
+        result_count=len(hits),
+        top_document_ids=[doc_id for doc_id, _ in hits[:10]],
+        latency_ms=int((time.monotonic() - started) * 1000),
     )
     if not hits:
         return []
@@ -294,7 +309,12 @@ def corpus_analytics(
 
 
 def corpus_coverage(
-    session: Session, *, tenant_id: uuid.UUID, query: str, domain: str | None = None
+    session: Session,
+    *,
+    tenant_id: uuid.UUID,
+    query: str,
+    domain: str | None = None,
+    surface: str = "mcp",
 ) -> dict:
     """How well the corpus covers a topic, and what would improve it.
 
@@ -307,8 +327,26 @@ def corpus_coverage(
 
     from corpus.analytics.coverage import assess_coverage
 
+    started = time.monotonic()
     report = assess_coverage(
         session, tenant_id=tenant_id, query=query, domain=_parse_domain(domain)
+    )
+    # The most valuable row this corpus writes: a graded verdict on a real question,
+    # with the index completeness that produced it. `answered_well` is the grade's
+    # own judgement, not a guess about whether the user was satisfied.
+    record_query(
+        session,
+        tenant_id=tenant_id,
+        tool="coverage",
+        surface=surface,
+        query_text=query,
+        domain=domain,
+        result_count=report.n_documents,
+        coverage_grade=report.grade,
+        indexed_documents=report.indexed_documents,
+        total_documents=report.total_documents,
+        latency_ms=int((time.monotonic() - started) * 1000),
+        answered_well=report.grade in ("good", "partial"),
     )
     payload = asdict(report)
     payload["date_earliest"] = report.date_earliest.isoformat() if report.date_earliest else None

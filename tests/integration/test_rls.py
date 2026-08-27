@@ -24,6 +24,7 @@ TENANT_TABLES = [
     "chunk",
     "chunk_embedding",
     "entity_extraction_run",
+    "query_log",
 ]
 
 
