@@ -351,6 +351,16 @@ def corpus_coverage(
     payload = asdict(report)
     payload["date_earliest"] = report.date_earliest.isoformat() if report.date_earliest else None
     payload["date_latest"] = report.date_latest.isoformat() if report.date_latest else None
+    # TemporalShape carries dt.date in every bucket, which asdict leaves as date
+    # objects — the whole payload is unserializable without this.
+    temporal = payload.get("temporal") or {}
+    if temporal.get("peak_period") is not None:
+        temporal["peak_period"] = report.temporal.peak_period.isoformat()
+    temporal["buckets"] = [
+        {"period": b.period.isoformat(), "n_documents": b.n_documents, "n_sources": b.n_sources}
+        for b in report.temporal.buckets
+    ]
+    payload["temporal"] = temporal
     return payload
 
 

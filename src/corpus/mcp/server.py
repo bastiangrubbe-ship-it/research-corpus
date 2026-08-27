@@ -131,6 +131,14 @@ def corpus_coverage(query: str, domain: str | None = None) -> dict:
 
     Read `indexed_documents` against `total_documents` on every answer before believing
     a low grade: a partially-built index does not look broken, it looks decisive.
+
+    **Read `temporal` before treating a grade as an answer about now.** Coverage has a
+    shape in time: `pattern` is sustained/burst/faded/emerging, with per-month buckets,
+    the share falling in the busiest month, and how many months inside the span are
+    empty. A topic can be covered intensely for a fortnight and then fade — the corpus
+    holds good coverage *of that fortnight* and nothing about the present, and a bare
+    grade cannot express that. `faded` and `burst` are capped at `partial` for exactly
+    this reason. Quiet months matter too: a trend drawn across them is interpolation.
     """
     with tenant_session(_TENANT_ID) as session:
         return corpus_tools.corpus_coverage(

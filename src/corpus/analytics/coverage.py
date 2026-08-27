@@ -61,6 +61,119 @@ MIN_SPAN_DAYS = 90
 STALE_AFTER_DAYS = 120
 
 
+#: A single month holding this share of all matches means the coverage is an event,
+#: not a subject. Half in one month is a burst by any reading.
+BURST_SHARE = 0.5
+
+#: Below this many matches, the distribution is noise and no pattern should be claimed.
+MIN_FOR_PATTERN = 4
+
+
+@dataclass(frozen=True, slots=True)
+class PeriodBucket:
+    """One month of coverage."""
+
+    period: dt.date
+    n_documents: int
+    n_sources: int
+
+
+@dataclass(frozen=True, slots=True)
+class TemporalShape:
+    """*When* the coverage is, not just how much of it there is.
+
+    `span_days` alone cannot answer this and was previously the only temporal signal:
+    twenty documents clustered into two weeks at either end of eighteen months still
+    reports a span of 540 days and reads as broad coverage. For a corpus whose stated
+    value is comparative and temporal, that is measuring the wrong thing.
+
+    The distinction that matters: a topic can be intensely covered for a fortnight and
+    then fade. The corpus genuinely holds good coverage *of that fortnight* — and
+    nothing about the present. Both facts need saying, because a bare "good" implies
+    the corpus can speak to the topic now.
+    """
+
+    buckets: list[PeriodBucket]
+    #: sustained | burst | faded | emerging | sparse
+    pattern: str
+    peak_period: dt.date | None
+    #: Share of all matches falling in the single busiest month.
+    peak_share: float
+    active_months: int
+    span_months: int
+    quiet_months: int
+    days_since_latest: int | None
+
+    @property
+    def is_concentrated(self) -> bool:
+        return self.pattern in ("burst", "faded")
+
+
+def _month(day: dt.date) -> dt.date:
+    return day.replace(day=1)
+
+
+def _months_between(a: dt.date, b: dt.date) -> int:
+    return (b.year - a.year) * 12 + (b.month - a.month) + 1
+
+
+def build_temporal_shape(
+    dated: list[tuple[dt.date, str]], *, as_of: dt.date, stale_after_days: int
+) -> TemporalShape:
+    """`dated` is (published_at, source_title) per matched document.
+
+    Documents with no publication date are excluded by the caller rather than bucketed
+    into a guess — `published_at_precision` exists because this corpus refuses to
+    invent dates, and a temporal reading built on invented ones would be worse than
+    none.
+    """
+    if not dated:
+        return TemporalShape([], "sparse", None, 0.0, 0, 0, 0, None)
+
+    by_month: dict[dt.date, list[str]] = {}
+    for day, source in dated:
+        by_month.setdefault(_month(day), []).append(source)
+
+    buckets = [
+        PeriodBucket(period=m, n_documents=len(srcs), n_sources=len(set(srcs)))
+        for m, srcs in sorted(by_month.items())
+    ]
+    total = sum(b.n_documents for b in buckets)
+    peak = max(buckets, key=lambda b: b.n_documents)
+    peak_share = peak.n_documents / total
+    latest = max(day for day, _ in dated)
+    earliest = min(day for day, _ in dated)
+    days_since = (as_of - latest).days
+    span_months = _months_between(_month(earliest), _month(latest))
+    active = len(buckets)
+
+    if total < MIN_FOR_PATTERN or active < 2:
+        pattern = "sparse"
+    elif days_since > stale_after_days and peak_share >= BURST_SHARE / 2:
+        # Concentrated *and* nothing recent: the topic had a moment and moved on.
+        pattern = "faded"
+    elif peak_share >= BURST_SHARE:
+        pattern = "burst"
+    elif _month(latest) == peak.period or (
+        span_months >= 3
+        and sum(b.n_documents for b in buckets[-max(1, span_months // 3) :]) / total > 0.5
+    ):
+        pattern = "emerging"
+    else:
+        pattern = "sustained"
+
+    return TemporalShape(
+        buckets=buckets,
+        pattern=pattern,
+        peak_period=peak.period,
+        peak_share=round(peak_share, 3),
+        active_months=active,
+        span_months=span_months,
+        quiet_months=max(span_months - active, 0),
+        days_since_latest=days_since,
+    )
+
+
 @dataclass(frozen=True, slots=True)
 class CoverageReport:
     query: str
@@ -80,6 +193,9 @@ class CoverageReport:
     date_earliest: dt.date | None
     date_latest: dt.date | None
     span_days: int | None
+    #: When the coverage actually sits. See TemporalShape — `span_days` alone cannot
+    #: distinguish sustained coverage from two clusters eighteen months apart.
+    temporal: TemporalShape
     top_sources: list[tuple[str, int]] = field(default_factory=list)
     domain_breakdown: dict[str, int] = field(default_factory=dict)
     absent_domains: list[str] = field(default_factory=list)
@@ -139,6 +255,7 @@ def _build_suggestions(
     absent_domains: list[str],
     date_latest: dt.date | None,
     span_days: int | None,
+    temporal: TemporalShape | None = None,
     related_entities: list[tuple[str, str, int]],
     empty_sources: list[str],
     as_of: dt.date,
@@ -189,6 +306,27 @@ def _build_suggestions(
             f"{top_sources[0][0]} alone accounts for {top_sources[0][1]} of {n_documents} "
             "matches. Breadth looks adequate but is concentrated — check whether the "
             "others are really saying the same thing or just echoing it."
+        )
+
+    if temporal is not None and temporal.pattern == "faded":
+        peak = temporal.peak_period.strftime("%B %Y") if temporal.peak_period else "its peak"
+        out.append(
+            f"Coverage peaks in {peak} and stops: nothing in the last "
+            f"{temporal.days_since_latest} days. Treat answers as describing that period, "
+            "not the present — and if the present is what you need, this is a sourcing gap, "
+            "not a retrieval one."
+        )
+    elif temporal is not None and temporal.pattern == "burst":
+        peak = temporal.peak_period.strftime("%B %Y") if temporal.peak_period else "one month"
+        out.append(
+            f"{temporal.peak_share:.0%} of the matches fall in {peak}. The corpus can say "
+            "what was being said then; it cannot support a claim about how the view "
+            "developed, because there is barely anything either side of it."
+        )
+    elif temporal is not None and temporal.quiet_months >= 3:
+        out.append(
+            f"{temporal.quiet_months} month(s) inside the covered span have nothing at all. "
+            "A trend line drawn across those gaps would be interpolation, not evidence."
         )
 
     if span_days is not None and span_days < MIN_SPAN_DAYS:
@@ -284,6 +422,7 @@ def assess_coverage(
             date_earliest=None,
             date_latest=None,
             span_days=None,
+            temporal=build_temporal_shape([], as_of=as_of, stale_after_days=STALE_AFTER_DAYS),
             related_entities=_related_entities(
                 session, tenant_id=tenant_id, document_ids=nearest_ids
             ),
@@ -322,6 +461,7 @@ def assess_coverage(
     domain_counts: dict[str, int] = {}
     authority_counts: dict[str, int] = {}
     dates: list[dt.date] = []
+    dated: list[tuple[dt.date, str]] = []
     for _id, published_at, source_title, dom, tier in rows:
         title = source_title or "(unnamed source)"
         source_counts[title] = source_counts.get(title, 0) + 1
@@ -329,11 +469,13 @@ def assess_coverage(
         authority_counts[tier.value] = authority_counts.get(tier.value, 0) + 1
         if published_at is not None:
             dates.append(published_at.date())
+            dated.append((published_at.date(), title))
 
     top_sources = sorted(source_counts.items(), key=lambda kv: kv[1], reverse=True)
     earliest = min(dates) if dates else None
     latest = max(dates) if dates else None
     span = (latest - earliest).days if earliest and latest else None
+    temporal = build_temporal_shape(dated, as_of=as_of, stale_after_days=STALE_AFTER_DAYS)
 
     # Domains that exist in this corpus but contribute nothing to these matches.
     present_domains = set(
@@ -361,9 +503,32 @@ def assess_coverage(
     ):
         grade = "partial"
         headline = "Partial — real material, but narrow in sources or in time."
+    elif temporal.is_concentrated:
+        # Deliberately not "good". The corpus may cover this *period* very well, and
+        # the headline says so — but a bare "good" implies it can speak to the topic
+        # now, which a burst or faded shape cannot.
+        grade = "partial"
+        peak = temporal.peak_period.strftime("%b %Y") if temporal.peak_period else "one period"
+        if temporal.pattern == "faded":
+            headline = (
+                f"Partial — {n_documents} matches, but they peak in {peak} and the newest "
+                f"is {temporal.days_since_latest} days old. Good on that period, silent since."
+            )
+        else:
+            headline = (
+                f"Partial — {n_documents} matches, {temporal.peak_share:.0%} of them in "
+                f"{peak}. An event rather than a subject."
+            )
     else:
         grade = "good"
-        headline = f"Good — {n_documents} matches across {n_sources} independent sources."
+        shape = (
+            f", sustained across {temporal.active_months} months"
+            if temporal.pattern == "sustained"
+            else ", concentrated in recent months" if temporal.pattern == "emerging" else ""
+        )
+        headline = (
+            f"Good — {n_documents} matches across {n_sources} independent sources{shape}."
+        )
 
     return CoverageReport(
         query=query,
@@ -377,6 +542,7 @@ def assess_coverage(
         date_earliest=earliest,
         date_latest=latest,
         span_days=span,
+        temporal=temporal,
         top_sources=top_sources[:5],
         domain_breakdown=domain_counts,
         absent_domains=absent,
@@ -390,6 +556,7 @@ def assess_coverage(
             absent_domains=absent,
             date_latest=latest,
             span_days=span,
+            temporal=temporal,
             related_entities=related,
             empty_sources=empty_sources,
             as_of=as_of,
