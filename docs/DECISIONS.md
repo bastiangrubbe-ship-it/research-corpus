@@ -9,6 +9,100 @@ and dismissed or simply never thought of.
 
 ---
 
+## 2026-08-27 — The nightly job had been dead for four nights, and nothing said so
+
+Four findings, one theme: this corpus keeps failing in ways that present as normal
+operation.
+
+### The scheduled job never worked
+
+`launchctl` showed the nightly loaded and scheduled; its status column showed exit 1.
+Four runs started, zero completed, since 2026-08-24.
+
+`PROJECT_DATA_DIR` lives in `.envrc`, not `.env`, and direnv only loads `.envrc` for an
+interactive shell. `nightly.sh` sourced `.env`, got nothing, and died in `Settings()`
+validation every night. Both `PROJECT_DATA_DIR` mentions in `.env` are *comments*
+saying it comes from `.envrc`.
+
+This is the project's own good convention — one source of truth for the data path —
+meeting a scheduler that does not participate in it. Fixed by re-execing under
+`direnv exec` when the variable is absent, rather than hardcoding a fallback: a
+scheduled job that cannot resolve its data directory must fail loudly, not write
+somewhere unexpected. Verified under a simulated launchd environment (`env -i`, plist
+PATH only) and then by a real manual run.
+
+### The dead-man's switch existed and was never wired up
+
+`db.models.Heartbeat` has been in the schema since the initial migration, with a
+docstring naming this exact failure: *"a job that failed silently and a job that never
+ran both look identical here — which is exactly the property log-scraping lacks."*
+Nothing ever wrote to it.
+
+Now `ops/heartbeat.py` does, on success and (via an ERR trap) on failure, so "ran and
+broke" stays distinguishable from "never started". `flows/doctor.py` reports staleness
+and refuses to print "all stages complete" while scheduled work is stalled — a corpus
+can be 100% built and entirely dead, and the stage counts cannot tell those apart.
+
+### 74 documents had no transcript; 62 never can
+
+Probing (free, yt-dlp only) found 39 members-only, 23 with no captions at all, and 12
+genuinely retryable. Recorded on `document.transcript_unavailable_reason` so the doctor
+can exclude what provably cannot reach a stage — while *printing* the exclusion, never
+silently shrinking a denominator. `fetch_failed` deliberately stays in the denominator
+because it is actionable.
+
+None of these reasons is permanent, and the enum says so: members-only is a
+credentials gap, captions can be added later. Re-probe rather than treating them as
+settled.
+
+Retrying the 12 recovered 8, all through ytapi, costing no Supadata credits.
+
+**A probe that is blocked is not a finding.** The first classifier mapped YouTube's
+"Sign in to confirm you're not a bot" to `fetch_failed` and overwrote 22 correct
+`no_captions` results with a rate-limit artefact. Blocked probes now return None and
+leave the column untouched. Same class of error as coalescing `is_auto_generated`.
+
+### Running backfill_chunks after restoration doubled the index
+
+`find_unchunked_transcript_versions` excluded per *transcript version*. Restoration had
+written a newer version for every document, so a later run built a second chunk set
+against restored text and left the raw one in place: 70,106 -> 140,849 chunks, 3,269
+documents chunked twice. The docstring described following the newest version as
+intended; nothing removed what it superseded.
+
+Not merely wasteful. `chunk_dense_search` collapses with `DISTINCT ON (document_id)` by
+distance, and the restored chunks scored closer while being less relevant, so they
+crowded out better ones: **P 0.413 -> 0.358, R 0.485 -> 0.431**. Deleted the restored
+set; retrieval returned to exactly 0.413/0.485.
+
+That is the second independent measurement in two days that restored text is worse as
+*retrieval input* while being better as prose. Restoration remains worth having for
+synthesis quotes and reranker input; it should not feed an embedding.
+
+Exclusion is now per document, with `rechunk_document` for deliberate replacement.
+Superseding an index is a decision, not a side effect.
+
+### RSS discovery: right instinct, and it needs a guard
+
+The nightly discovers with yt-dlp, one channel at a time, enumerating each channel's
+entire back catalogue — `--concurrency 1`, `--metadata-source ytdlp`, and no
+`--since-days`. Measured, a channel's RSS feed answers in **0.11s** of plain HTTP with
+15 recent entries, parallelises freely, and does not trip the bot detection that ~90
+yt-dlp calls demonstrably does.
+
+But `discover_channel_videos` hits `/videos` specifically and never `/shorts`, and
+**RSS makes no such distinction and carries no duration field**. Measured on
+@danmartell: 5 of 6 recent RSS entries were Shorts (58s, 28s, 55s, 28s, 31s). Nothing
+downstream filtered by duration — the Shorts exclusion lived entirely in the choice of
+discovery URL — so a naive swap would have started ingesting Shorts corpus-wide.
+
+`rss_discovery.py` therefore ships with `is_probable_short` and is **not** the default.
+The viable design is RSS for candidates (fast, concurrent, free), minus IDs already
+held, then a duration check on the small remainder before any credit is spent —
+`adapter.fetch` already resolves metadata before the transcript call.
+
+---
+
 ## 2026-08-26 (later) — Re-deriving summaries from restored text made retrieval WORSE; reverted
 
 A negative result, kept because it cost two hours to get and because the reasoning
