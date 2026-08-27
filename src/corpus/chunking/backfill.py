@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import select, text
+from sqlalchemy import delete, select, text
 from sqlalchemy.orm import Session
 
 from corpus.chunking.windows import SegmentInput, build_windows
@@ -35,11 +35,27 @@ def find_unchunked_transcript_versions(
     session: Session, *, tenant_id: uuid.UUID, limit: int | None = None
 ) -> list[tuple[uuid.UUID, uuid.UUID]]:
     """(transcript_version_id, document_id) for the latest transcript of each
-    document that has no chunks yet.
+    document that has **no chunks from any version**.
 
     Picks the most recent transcript version per document, the same rule
-    `corpus.enrich.entities` and `relevance_gate` use — so once restoration writes a
-    derived version, chunking follows it automatically with no change here.
+    `corpus.enrich.entities` and `relevance_gate` use.
+
+    The exclusion is per *document*, not per transcript version, and that distinction
+    is the whole point. It used to be per version, with a docstring claiming that
+    "once restoration writes a derived version, chunking follows it automatically" —
+    which was true, and also meant a later run silently built a SECOND chunk set
+    against the restored version while leaving the raw one in place. Running it after
+    a corpus-wide restoration took this corpus from 70,106 chunks to 140,849, with
+    3,269 documents chunked twice.
+
+    That was not merely wasteful. `chunk_dense_search` collapses with
+    `DISTINCT ON (document_id)` ordered by distance, so the duplicate set competed for
+    the same slots and won often enough to hurt: measured P 0.413 -> 0.358, R 0.485 ->
+    0.431 on the frozen judgment set (docs/DECISIONS.md, 2026-08-27).
+
+    To deliberately re-chunk against a newer version, delete that document's existing
+    chunks first — `rechunk_document` does exactly that, and doing it explicitly is
+    the point.
     """
     latest = (
         select(
@@ -51,9 +67,10 @@ def find_unchunked_transcript_versions(
         .order_by(TranscriptVersion.document_id, TranscriptVersion.created_at.desc())
         .subquery()
     )
-    already = select(Chunk.transcript_version_id).where(Chunk.tenant_id == tenant_id)
+    # Per document, not per transcript version — see the docstring.
+    already = select(Chunk.document_id).where(Chunk.tenant_id == tenant_id)
     stmt = select(latest.c.transcript_version_id, latest.c.document_id).where(
-        latest.c.transcript_version_id.notin_(already)
+        latest.c.document_id.notin_(already)
     )
     if limit:
         stmt = stmt.limit(limit)
@@ -170,3 +187,36 @@ def backfill_chunks(
         docs += 1
     session.commit()
     return docs, chunks
+
+
+def rechunk_document(
+    session: Session, *, tenant_id: uuid.UUID, document_id: uuid.UUID
+) -> tuple[int, int]:
+    """Delete a document's existing chunks and rebuild from its latest transcript
+    version. Returns (deleted, written).
+
+    Explicit because the alternative — having the backfill quietly follow the newest
+    version — produced two live chunk sets per document and measurably worse
+    retrieval. Superseding an index is a decision, not a side effect.
+    """
+    deleted = session.execute(
+        delete(Chunk).where(Chunk.tenant_id == tenant_id, Chunk.document_id == document_id)
+    ).rowcount
+    version_id = session.execute(
+        select(TranscriptVersion.id)
+        .where(
+            TranscriptVersion.tenant_id == tenant_id,
+            TranscriptVersion.document_id == document_id,
+        )
+        .order_by(TranscriptVersion.created_at.desc())
+        .limit(1)
+    ).scalar_one_or_none()
+    if version_id is None:
+        session.commit()
+        return deleted, 0
+    chunk_ids = chunk_transcript_version(
+        session, tenant_id=tenant_id, transcript_version_id=version_id, document_id=document_id
+    )
+    written = embed_chunks(session, tenant_id=tenant_id, chunk_ids=chunk_ids)
+    session.commit()
+    return deleted, written
