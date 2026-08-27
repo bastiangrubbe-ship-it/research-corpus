@@ -34,6 +34,16 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--limit", type=int, default=None, help="stop after this many documents")
     parser.add_argument("--batch", type=int, default=100, help="documents per commit (default 100)")
+    parser.add_argument(
+        "--redo",
+        action="store_true",
+        help=(
+            "re-derive summaries that already exist, overwriting them. Use after "
+            "punctuation restoration: the summariser reads a document's newest "
+            "transcript version, so a redo reads restored text where the original "
+            "read raw ASR. Without this a re-run is a silent no-op."
+        ),
+    )
     args = parser.parse_args()
 
     settings = get_settings()
@@ -44,7 +54,15 @@ def main() -> int:
     while args.limit is None or total < args.limit:
         size = args.batch if args.limit is None else min(args.batch, args.limit - total)
         with tenant_session(tenant_id) as session:
-            done = backfill_document_summaries(session, tenant_id=tenant_id, limit=size)
+            # A redo's work list never shrinks -- every document matches on every
+            # call -- so it walks forward on an explicit offset instead.
+            done = backfill_document_summaries(
+                session,
+                tenant_id=tenant_id,
+                limit=size,
+                redo=args.redo,
+                offset=total if args.redo else 0,
+            )
         if done == 0:
             break
         total += done
@@ -56,7 +74,8 @@ def main() -> int:
         )
 
     mins = (time.monotonic() - started) / 60
-    print(f"\ndone: {total} documents summarized and embedded in {mins:.1f}m")
+    verb = "re-derived" if args.redo else "summarized and embedded"
+    print(f"\ndone: {total} documents {verb} in {mins:.1f}m")
     return 0
 
 

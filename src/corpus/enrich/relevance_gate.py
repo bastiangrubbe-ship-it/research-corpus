@@ -70,21 +70,49 @@ def _latest_transcript_versions(tenant_id: uuid.UUID):
 
 
 def backfill_document_summaries(
-    session: Session, *, tenant_id: uuid.UUID, limit: int | None = None
+    session: Session,
+    *,
+    tenant_id: uuid.UUID,
+    limit: int | None = None,
+    redo: bool = False,
+    offset: int = 0,
 ) -> int:
     """Summarize + embed documents that don't have a document_summary row yet.
 
     Runs entirely locally — no `claude -p` call anywhere in this path. Returns the
     number of documents processed.
+
+    `redo=True` re-derives summaries that already exist, overwriting them. This is for
+    when the *input* has changed rather than the code: `_latest_transcript_versions`
+    resolves to a document's newest version, so once punctuation restoration has run,
+    a re-derivation reads restored text where the original read raw ASR. That matters
+    because `summarize_extractive` needs sentence boundaries — TextRank has nothing to
+    rank when NLTK cannot split the text, which on this corpus left ~5% of documents
+    with a summary that was effectively one truncated blob (docs/DECISIONS.md).
+
+    Without `redo` the upsert is `on_conflict_do_nothing`, so re-running is a no-op
+    rather than a refresh — safe, but silently so. Anyone expecting a re-derivation
+    from a plain re-run would get "3,269 processed" and no change at all.
+
+    `offset` exists only for `redo`. The normal path needs no cursor because its work
+    list shrinks as rows are written, so repeated calls walk forward on their own; a
+    redo's work list is every document every time, and a caller batching on
+    "returned 0" would otherwise re-derive the same first batch until interrupted.
     """
     latest = _latest_transcript_versions(tenant_id)
-    already_summarized = select(DocumentSummary.document_id).where(
-        DocumentSummary.tenant_id == tenant_id,
-        DocumentSummary.method == SummaryMethod.EXTRACTIVE_TEXTRANK,
-    )
-    stmt = select(latest.c.document_id, latest.c.transcript_version_id).where(
-        latest.c.document_id.notin_(already_summarized)
-    )
+    stmt = select(latest.c.document_id, latest.c.transcript_version_id)
+    if not redo:
+        already_summarized = select(DocumentSummary.document_id).where(
+            DocumentSummary.tenant_id == tenant_id,
+            DocumentSummary.method == SummaryMethod.EXTRACTIVE_TEXTRANK,
+        )
+        stmt = stmt.where(latest.c.document_id.notin_(already_summarized))
+    # Ordered so `offset` is stable across calls — without it Postgres may return
+    # rows in a different order each time and a paginated redo would skip documents
+    # while re-deriving others twice.
+    stmt = stmt.order_by(latest.c.document_id)
+    if offset:
+        stmt = stmt.offset(offset)
     if limit:
         stmt = stmt.limit(limit)
     pending = session.execute(stmt).all()
@@ -115,11 +143,24 @@ def backfill_document_summaries(
         }
         for i, (document_id, _tv_id) in enumerate(pending)
     ]
-    session.execute(
-        pg_insert(DocumentSummary)
-        .on_conflict_do_nothing(index_elements=["document_id", "method"])
-        .values(rows)
-    )
+    insert = pg_insert(DocumentSummary).values(rows)
+    if redo:
+        # Overwrite text, embedding and model_version together. Updating the text
+        # without its vector would leave the dense lane searching a vector of the old
+        # summary while the reranker reads the new one — the two would silently
+        # disagree about what the document says.
+        session.execute(
+            insert.on_conflict_do_update(
+                index_elements=["document_id", "method"],
+                set_={
+                    "text": insert.excluded.text,
+                    "embedding": insert.excluded.embedding,
+                    "model_version": insert.excluded.model_version,
+                },
+            )
+        )
+    else:
+        session.execute(insert.on_conflict_do_nothing(index_elements=["document_id", "method"]))
     session.commit()
     return len(rows)
 
