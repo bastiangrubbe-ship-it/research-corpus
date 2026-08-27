@@ -116,8 +116,12 @@ def corpus_search(
 
     `candidate_pool` is the real latency knob, and it is steep: reranking is a
     cross-encoder pass over every candidate, so cost scales with the pool, not with
-    `top_k`. Measured on this corpus, warm: pool=50 ~37s, pool=20 ~6s, pool=10 ~3s;
-    `rerank=False` skips the cross-encoder entirely and returns RRF-fused order.
+    `top_k`. Measured warm, re-measured 2026-08-27: pool=10 ~8s, pool=20 ~14s,
+    pool=50 ~36s. The earlier figures here (~3s/~6s/~37s) were taken before the
+    chunk-dense lane existed and before the corpus reached 3,349 documents — the
+    small pools have roughly doubled since, so re-measure rather than trusting these
+    after any change to lanes or corpus size. `rerank=False` skips the cross-encoder
+    entirely and returns RRF-fused order.
 
     The default stays 50 — quality-first, which is right for an agent that can wait.
     Interactive callers (the dashboard) pass something smaller deliberately, trading

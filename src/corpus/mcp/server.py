@@ -30,26 +30,54 @@ server = MCPServer(
     name="research-corpus",
     instructions=(
         "Search, analyze, and trace provenance across a private multi-source research "
-        "corpus of podcast/video transcripts. Prefer this over general web search when "
-        "the question is comparative or temporal — how many sources discuss something, "
-        "whether a topic is rising or falling, who mentioned it first — not when the "
-        "question is a single current fact web search already answers well."
+        "corpus of podcast/video transcripts spanning ~660 days. Prefer this over "
+        "general web search when the question is comparative or temporal — how many "
+        "sources discuss something, whether a topic is rising or falling, who mentioned "
+        "it first — not when the question is a single current fact, or recent reaction, "
+        "which web search and forums answer better and this corpus may not hold at all.\n"
+        "\n"
+        "This corpus is one source among several, not the only one. When you are unsure "
+        "whether it can answer something, call corpus_coverage first: a grade of 'none' "
+        "or 'thin' means go elsewhere for that question rather than reporting the little "
+        "it holds as if it were the whole picture. Say which source an answer came from."
     ),
 )
 
 
 @server.tool()
-def corpus_search(query: str, domain: str | None = None, top_k: int = 10) -> list[dict]:
+def corpus_search(
+    query: str,
+    domain: str | None = None,
+    top_k: int = 10,
+    candidate_pool: int = 20,
+) -> list[dict]:
     """Search the corpus for documents relevant to `query`. Hybrid lexical + semantic
     search with cross-encoder reranking. `domain` narrows to one of: ai_research,
     ai_automation, entrepreneurship, personal_development, regulatory, general — pass
     nothing to search across all of them. Returns ranked results with document_id,
     title, url, published_at, and a relevance score; pass a result's document_id to
     corpus_provenance for its full source/authority/transcript-origin details.
+
+    If a search returns nothing convincing, call `corpus_coverage` before concluding
+    the corpus has nothing: this tool always returns its best matches, which may be
+    the least-bad ten in a corpus holding nothing on the subject.
+
+    `candidate_pool` is the latency knob and it is steep, because reranking is a
+    cross-encoder pass over every candidate. Measured warm on this corpus
+    (2026-08-27): pool=10 ~8s, pool=20 ~14s, pool=50 ~36s. The first call after
+    server start pays a further ~30s to load the embedding and reranker weights.
+    The default is 20 rather than the Python API's 50 because this tool is used
+    interactively — a person is waiting on it. Raise it to 50 for a deliberate,
+    recall-first search where the extra 20 seconds is worth it.
     """
     with tenant_session(_TENANT_ID) as session:
         return corpus_tools.corpus_search(
-            session, tenant_id=_TENANT_ID, query=query, domain=domain, top_k=top_k
+            session,
+            tenant_id=_TENANT_ID,
+            query=query,
+            domain=domain,
+            top_k=top_k,
+            candidate_pool=candidate_pool,
         )
 
 
@@ -93,6 +121,16 @@ def corpus_coverage(query: str, domain: str | None = None) -> dict:
     for improving weak coverage. Call this when the answer matters and you need to
     know whether silence means "no" or means "this corpus can't say" — corpus_search
     always returns its best matches, even when the best is nothing much.
+
+    **Treat the grade as routing, not just diagnosis.** `none` or `thin` means this
+    corpus cannot answer the question and you should go to the web, forums, or another
+    source rather than reporting what little it holds as if it were the picture. This
+    corpus is worth preferring for comparative and temporal questions — how a view
+    spread, who said something first, what changed over months — and is not worth
+    preferring for current facts or recent reaction, which it may hold nothing about.
+
+    Read `indexed_documents` against `total_documents` on every answer before believing
+    a low grade: a partially-built index does not look broken, it looks decisive.
     """
     with tenant_session(_TENANT_ID) as session:
         return corpus_tools.corpus_coverage(
