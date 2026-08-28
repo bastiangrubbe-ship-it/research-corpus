@@ -26,6 +26,50 @@ from corpus.mcp import tools as corpus_tools
 _settings = get_settings()
 _TENANT_ID = resolve_tenant_id(_settings)
 
+
+def _scale_line() -> str:
+    """One sentence of live scale, so a connecting client is told what is actually in
+    here rather than a number written months ago that has since rotted.
+
+    Best-effort by design: a failure here must not stop the server starting. A tool
+    that runs without its preamble is far better than a corpus nobody can query
+    because a COUNT(*) timed out.
+    """
+    try:
+        from sqlalchemy import text
+
+        from corpus.db.session import tenant_session
+
+        with tenant_session(_TENANT_ID) as session:
+            q = session.execute
+            docs = q(text("select count(*) from document")).scalar()
+            srcs = q(text("select count(*) from source")).scalar()
+            span = q(
+                text("select min(published_at)::date || ' to ' || max(published_at)::date "
+                     "from document")
+            ).scalar()
+            top = [
+                r[0]
+                for r in q(
+                    text(
+                        "select e.canonical_name from entity e "
+                        "join entity_mention m on m.entity_id = e.id "
+                        "join document d on d.id = m.document_id "
+                        "group by e.id, e.canonical_name "
+                        "order by count(distinct d.source_id) desc limit 6"
+                    )
+                ).all()
+            ]
+        return (
+            f"\n\nScale right now: {docs:,} documents from {srcs} sources, {span}. "
+            f"The subjects it genuinely covers, by breadth of independent sources: "
+            f"{', '.join(top)}. It is thin on anything else and empty on most of it — "
+            f"which is what corpus_coverage is for."
+        )
+    except Exception:  # never block startup on a preamble
+        return ""
+
+
 server = MCPServer(
     name="research-corpus",
     instructions=(
@@ -40,7 +84,8 @@ server = MCPServer(
         "whether it can answer something, call corpus_coverage first: a grade of 'none' "
         "or 'thin' means go elsewhere for that question rather than reporting the little "
         "it holds as if it were the whole picture. Say which source an answer came from."
-    ),
+    )
+    + _scale_line(),
 )
 
 

@@ -122,6 +122,9 @@ Read when the work calls for them, not by default.
 - `docs/FEDERATION.md` — how this corpus relates to realtime search (web, Reddit, X) when
   driven from inside Claude, and why the fan-out layer is deliberately *not* built here
 - `docs/SUPADATA.md` — the confirmed Supadata API schema and what it does *not* provide
+- `docs/USING_THE_CORPUS.md` — a self-contained brief to paste into a clean chat: what
+  the corpus holds, which tool answers what, and the five things that mislead a caller
+  who does not know them
 - `docs/PIPELINE.md` — the stage graph, the ordering constraints that have actually
   caused outages, and how to verify a change. Start here to fix or extend the pipeline
 - `docs/DECISIONS.md` — what was chosen, what was rejected, and why
