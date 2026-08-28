@@ -9,6 +9,70 @@ and dismissed or simply never thought of.
 
 ---
 
+## 2026-08-27 — Restoration dropped: 94% of transcripts never needed it
+
+Asked why the corpus needs anything but raw transcripts, and the honest answer for
+restoration is that it does not.
+
+**Measured.** Period density over 3,770 raw transcripts (English prose runs 8-15
+periods per 1,000 characters; unpunctuated ASR runs 0-1):
+
+| density | transcripts | |
+|---|---:|---:|
+| normal (>= 4) | 3,545 | **94.0%** |
+| sparse (1-4) | 11 | 0.3% |
+| none (< 1) | 214 | 5.7% |
+
+Supadata largely returns real caption tracks, not raw ASR. Sampling raw against
+restored on typical documents, the only difference is collapsed caption newlines — a
+`re.sub`, bought with a transformer pass.
+
+**Cost:** 2,703,783 segments (50% of every segment in the database), 3,897
+`transcript_version` rows, 9.3h first pass, a permanent nightly stage, and two ordering
+defects caused by writing a newer version that every "latest wins" consumer silently
+switched to.
+
+**Benefit:** nicer punctuation in quotes from 225 documents.
+
+### Why it is the only derived artefact that did not earn its place
+
+The others each enable a capability raw text cannot provide: chunks answer "where in
+the 90 minutes", summaries give a document-level vector (you cannot embed 200k
+characters into one), entity mentions drive the analytics that are this corpus's stated
+core value. Restoration converts raw into slightly different raw. It enables nothing —
+and after summaries and chunks were pinned to `index_versions`, it fed nothing that
+needed it.
+
+### Removal
+
+Deleted 3,897 restored versions and their 2.7M segments; `VACUUM FULL segment` returned
+the space (segment table 1,227 MB -> 544 MB, database 1,958 MB -> 1,247 MB). Plain
+DELETE only marks pages reusable, so the reclaim needs the rewrite.
+
+260 `entity_mention` offsets across 13 documents were computed against restored text
+and are now stale; they were nulled rather than left as values known to be wrong. The
+other 327,892 predate restoration and stay valid. Nothing reads `start_char`/`end_char`
+today, which is why this was a correctness tidy-up and not an outage.
+
+`latest_versions` and `index_versions` are deliberately **not** re-merged even though
+they now return identical rows. The distinction they encode cost two defects to learn,
+and the next derived-version feature — a translation, a diarised rewrite — would
+reintroduce the bug from scratch against a single "newest" rule.
+
+`flows/restore_transcripts.py` and `corpus/enrich/restore.py` are kept, working and
+tested, marked unwired at the top of the module. The doctor no longer lists restoration
+as a stage: it is not incomplete, it is not part of the pipeline, and a check that
+permanently reports a missing stage is one people learn to ignore.
+
+### The pattern worth keeping
+
+Restoration had two justifications across its life. Both were reasonable when written.
+Both were false. The first was written for a GLiNER extractor that never shipped; the
+second held for months and was falsified the first time anyone measured it. Neither was
+tested until long after the code depended on them.
+
+---
+
 ## 2026-08-27 — Reading and indexing now resolve different transcript versions
 
 "Which transcript version is current" had one answer and needs two. `corpus/db/

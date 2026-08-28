@@ -40,6 +40,11 @@ COMPLETE_ENOUGH = 0.99
 NIGHTLY_STALE_AFTER_HOURS = 36
 
 
+#: Restoration was dropped on 2026-08-27 and is deliberately not a stage here. It is
+#: not "incomplete" — it is not part of the pipeline. Leaving it would have the check
+#: permanently report a missing stage, which is precisely how a health check trains
+#: people to ignore it. See docs/DECISIONS.md.
+#:
 #: Reasons a document can never gain a transcript, so can never gain anything derived
 #: from one. `fetch_failed` is deliberately absent: it is retryable, so those documents
 #: stay in the denominator and keep the stage honestly incomplete.
@@ -143,20 +148,6 @@ def diagnose(session: Session, *, tenant_id: uuid.UUID) -> list[StageReport]:
             total_sql=_DOCUMENTS,
             impact="a document with no transcript is unreachable by every lane",
             remedy="flows/ingest_youtube.py",
-        ),
-        _stage(
-            session,
-            tenant_id=tenant_id,
-            stage="restoration",
-            done_sql="""select count(*) from transcript_version p
-                        where p.tenant_id = :t and p.provider <> 'restored'
-                          and exists (select 1 from transcript_version c
-                                      where c.derived_from_id = p.id)""",
-            total_sql="""select count(*) from transcript_version
-                         where tenant_id = :t and provider <> 'restored'""",
-            impact="unpunctuated ASR gives NLTK no sentence boundaries, so summaries "
-            "and synthesis quotes come out as unreadable blobs",
-            remedy="flows/restore_transcripts.py",
         ),
         _stage(
             session,

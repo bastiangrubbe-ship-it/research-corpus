@@ -63,8 +63,11 @@ via `APP_DATABASE_URL`, or it passes for the wrong reason.
 
 Steps 1-5 and 7-10 complete. The corpus holds **3,349 documents** from 169 YouTube
 channels plus RSS, fully enriched: 292k entity mentions, 3,267 document summaries,
-**70k transcript chunks** with embeddings, speaker attribution over every document,
-and punctuation restoration over every raw transcript.
+**76k transcript chunks** with embeddings, and speaker attribution over every document.
+
+Punctuation restoration was dropped on 2026-08-27: 94% of transcripts already arrive
+adequately punctuated, its justification was falsified twice by measurement, and it
+cost half the segments in the database (`docs/DECISIONS.md`).
 
 Speaker attribution leaves 54% of documents at `attribution_method='unknown'`. That
 is the designed outcome for tier-1 heuristics over metadata, not a shortfall — "we
@@ -94,10 +97,6 @@ could not tell" is a different claim from a guess, and the column records which.
 
 Not done: step 0 (baseline capture), step 6's chunk-level *re-embedding* tooling, and
 step 11 (Linux dry run).
-
-Summaries and chunks were derived from *raw* transcripts and are not re-derived after
-restoration; that is a deliberate deferral, not an oversight, since it means
-re-deriving 3,267 summaries and 70k chunks.
 
 **Two standing cautions, learned the hard way** (both in `docs/DECISIONS.md`):
 a partially-built index does not look broken, it looks decisive — assert index

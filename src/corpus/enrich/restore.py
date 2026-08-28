@@ -1,14 +1,30 @@
 """Punctuation restoration for raw ASR transcripts — `oliverguhr/fullstop-
 punctuation-multilang-large`, the model the build plan named for this step.
 
-Not needed for entity extraction: Claude's extractor already handles raw,
-unpunctuated ASR text fine (docs/EVAL.md measured ~0.90 F1 with no restoration at
-all) — that was this step's original justification, written against a GLiNER-based
-extractor that never shipped. What actually still needs this: sentence-boundary-
-dependent processing. `corpus.enrich.summarize.summarize_extractive` tokenizes into
-sentences via NLTK before running TextRank, and sentence tokenization has nothing to
-work with on text with no periods or question marks at all — this is the real,
-still-live reason to build this now.
+**NOT PART OF THE PIPELINE (dropped 2026-08-27).** Kept because it works and is
+tested, not because anything runs it. Read docs/DECISIONS.md before reinstating:
+
+* 94% of this corpus's transcripts already arrive adequately punctuated (period
+  density >= 4 per 1,000 chars). Supadata largely returns real caption tracks, not raw
+  ASR, so for most documents this was collapsing caption newlines at the price of a
+  transformer pass.
+* Its stated justification below — giving NLTK the sentence boundaries TextRank needs
+  — was tested twice and rejected: summaries derived from restored text measured
+  *worse* (dense P -0.046 / R -0.069, lexical P -0.138), as did chunks (chunk_dense
+  P 0.413 -> 0.358).
+* It cost 2.7M segments, half the database, and caused two ordering defects by writing
+  a newer version that every "latest wins" consumer silently switched to.
+
+If quote legibility is the goal, collapsing caption newlines at read time is a `re.sub`
+and does 94% of what this did.
+
+The justification history, kept because the pattern is the lesson. First
+justification: entity extraction needs punctuation — written against a GLiNER
+extractor that never shipped, and false for the one that did (docs/EVAL.md measures
+~0.90 F1 on raw ASR). Second: `summarize_extractive` tokenizes with NLTK before
+TextRank, and unpunctuated text gives it no sentence boundaries — plausible, load-
+bearing for a while, and falsified when finally measured. Each justification was
+reasonable when written and neither was tested until much later.
 
 Produces a new `transcript_version` row (`provider=RESTORED`,
 `derived_from_id` pointing at the raw parent) plus its own `segment` rows — the raw
@@ -134,9 +150,10 @@ def _realign_to_segments(
     seconds of speech at a time and no sentence context across a boundary, which is
     where punctuation decisions are hardest.
 
-    This has to preserve segments because everything downstream picks a document's
-    *latest* transcript version (`DISTINCT ON (document_id) ... created_at DESC` in
-    chunking, the relevance gate, and entity extraction alike). An earlier version
+    This has to preserve segments because reading consumers pick a document's *latest*
+    transcript version (`corpus.db.transcript_versions.latest_versions`). Indexing
+    stages no longer do — they pin to `index_versions`, which excludes derived
+    providers — but that split came after this bug. An earlier version
     wrote the whole restored document as one segment at offset_ms=0; that made every
     chunk built from a restored version report a start_ms near zero, so
     `search_with_timestamps` would have degraded corpus-wide the moment restoration

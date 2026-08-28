@@ -16,15 +16,15 @@ seeds/youtube_channels.yaml
         ▼
    source ──► document ──► transcript_version(raw) ──► segment
                               │
-        ┌─────────────────────┼──────────────────────┬────────────────────┐
-        │                     │                      │                    │
-        ▼                     ▼                      ▼                    ▼
- restore_transcripts    backfill_summaries     backfill_chunks     nightly_entities
-        │                     │                      │                    │
-        ▼                     ▼                      ▼                    ▼
- transcript_version    document_summary          chunk +            entity +
-   (restored)          (+ embedding)          chunk_embedding    entity_mention
-                                                                 + entity_extraction_run
+        ┌─────────────────────┬──────────────────────┐
+        │                     │                      │
+        ▼                     ▼                      ▼
+ backfill_summaries     backfill_chunks       nightly_entities
+        │                     │                      │
+        ▼                     ▼                      ▼
+ document_summary          chunk +               entity +
+   (+ embedding)        chunk_embedding       entity_mention
+                                            + entity_extraction_run
 ```
 
 Speaker attribution (`corpus.enrich.speakers`) hangs off `document` independently and
@@ -37,7 +37,6 @@ reads `entity` when available, so it is better after entity extraction than befo
 | Ingest | `flows/ingest_youtube.py` | Supadata credits (ytapi first, free) | `--concurrency` (needs `--metadata-source supadata`) | yes — `document`'s unique constraint |
 | Probe missing | `flows/probe_missing_transcripts.py` | free (yt-dlp) | 3 | yes |
 | Retry failed | `flows/retry_failed_transcripts.py` | usually free (ytapi) | serial | yes — only touches `fetch_failed` |
-| Restoration | `flows/restore_transcripts.py` | free (local MPS) | serial | yes — skips versions with a derivation |
 | Summaries | `flows/backfill_summaries.py` | free (local) | batched | yes; `--redo` overwrites |
 | Chunks | `flows/backfill_chunks.py` | free (local) | batched | yes — skips documents with any chunks |
 | Entities | `flows/nightly_entities.py` | subscription quota | `--concurrency` (safe to 25) | yes — `entity_extraction_run` per `extractor_version` |
@@ -68,13 +67,11 @@ and built a second chunk set against restored text while leaving the raw one liv
 `DISTINCT ON` picked the closer-but-less-relevant restored chunks. Use
 `chunking.backfill.rechunk_document` to supersede deliberately; it deletes first.
 
-**3. Summaries and chunks are derived from RAW text.** Enforced by `index_versions`
-now rather than left to whoever runs the backfill. Measured twice, independently:
-restored text is better *as prose* and worse *as retrieval input* — a bi-encoder embeds
-these and BM25 counts terms, and coverage beats grammaticality, since a well-formed
-summary carries 27% less text. Restoration's remaining justification is readable
-synthesis citations; its documented one (helping TextRank find sentence boundaries) was
-tested and rejected.
+**3. There is no restoration stage.** It was dropped on 2026-08-27 after measurement:
+94% of transcripts already arrive adequately punctuated, its documented purpose was
+tested and rejected twice, and it cost half the segments in the database.
+`flows/restore_transcripts.py` still exists and works, deliberately unwired — see
+docs/DECISIONS.md before reinstating it.
 
 **4. Entities before speakers.** `guess_speaker` validates candidate names against the
 `entity` table; a name known to be a VENDOR or PRODUCT is rejected. Run before entity

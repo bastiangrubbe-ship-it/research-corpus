@@ -1,29 +1,23 @@
-"""Which transcript version a stage should use — and why that depends on the stage.
+"""Which transcript version a stage should use.
 
-A document can hold several `transcript_version` rows: the raw provider transcript, and
-a punctuation-restored derivation of it. "Which one is current" has two different right
-answers, and conflating them has caused two separate defects on this corpus
-(docs/DECISIONS.md, 2026-08-26 and 2026-08-27).
+With restoration dropped (docs/DECISIONS.md, 2026-08-27) a document has exactly one
+transcript version per provider fetch, so "newest" is unambiguous and both resolvers
+below return the same rows. They are kept **separate on purpose**.
 
-**Reading a document → `latest_versions`.** Synthesis quotes, the eval judge, entity
-extraction. These hand text to a language model, and restored text is genuinely better
-for that: a verbatim citation pulled from unpunctuated ASR is unreadable.
+The distinction they encode is real and cost two defects to learn:
 
-**Building an index → `index_versions`.** Summaries and chunks. These are embedded by a
-bi-encoder and counted by BM25, and restored text is measurably *worse* input for both:
+* Reading a document — synthesis quotes, the eval judge, entity extraction — wants the
+  most legible text available.
+* Building an index — summaries, chunks — wants the text that embeds and BM25-indexes
+  best, which measured *worse* when it was the more legible one: summaries dense
+  P −0.046 / R −0.069 and lexical P −0.138; chunks chunk_dense P 0.413 → 0.358.
 
-* summaries re-derived from restored text: dense P −0.046 / R −0.069, lexical P −0.138
-* chunks built from restored text: chunk_dense P 0.413 → 0.358, R 0.485 → 0.431
-
-Restoration adds punctuation and drops nothing, but the extractive summariser then
-selects *fewer, better-formed* sentences — 27% less text, so less topical surface for a
-vector to carry. Coverage beats grammaticality when nothing human reads the artefact.
-
-The trap this closes: both stages previously resolved "newest by created_at", which is
-correct until restoration runs and then silently wrong forever after. A backfill run at
-any point after restoration would quietly rebuild the index from the worse source, and
-nothing would fail. Pinning by provider makes the choice explicit at the query, where
-it cannot be forgotten.
+While restored versions existed, a single "newest by created_at" rule silently sent the
+index to the worse source and nothing failed. Collapsing these into one function now
+would delete the record of that, and the next derived-version feature — a translation,
+a diarised rewrite, a cleaned variant — would reintroduce the same bug from scratch.
+The cost of keeping them apart is one extra function; the cost of merging them is
+rediscovering this the hard way.
 """
 
 from __future__ import annotations
@@ -35,11 +29,16 @@ from sqlalchemy import select
 from corpus.db.enums import TranscriptProvider
 from corpus.db.models import TranscriptVersion
 
+#: Providers whose output is a *derivation* of another version rather than a fetch, and
+#: which must therefore never feed an index. Empty of consequence today because
+#: restoration was dropped; the moment another derived provider is added, add it here.
+DERIVED_PROVIDERS = (TranscriptProvider.RESTORED,)
+
 
 def latest_versions(tenant_id: uuid.UUID):
-    """Newest version per document, whatever its provider — restored if one exists.
+    """Newest version per document, whatever the provider.
 
-    For stages that give text to a model to read.
+    For stages that hand text to a model to read.
     """
     return (
         select(
@@ -54,17 +53,11 @@ def latest_versions(tenant_id: uuid.UUID):
 
 
 def index_versions(tenant_id: uuid.UUID):
-    """Newest **non-restored** version per document.
+    """Newest **non-derived** version per document — what summaries and chunks build on.
 
-    For stages that build something a machine searches — summaries, chunks. See the
-    module docstring for the measurements.
-
-    A document with only a restored version cannot occur (restoration always writes
-    `derived_from_id` pointing at its raw parent, and never deletes it), so excluding
-    restored rows here cannot orphan a document. If that invariant is ever broken the
-    document drops out of the index rather than being indexed from the wrong source,
-    which is the safer failure: `flows/doctor.py` reports a missing stage loudly, while
-    a quietly worse index reports nothing at all.
+    Excludes derived providers rather than allowlisting fetched ones, so a new
+    transcript source is indexable by default instead of silently vanishing from the
+    index because nobody updated a list.
     """
     return (
         select(
@@ -73,7 +66,7 @@ def index_versions(tenant_id: uuid.UUID):
         )
         .where(
             TranscriptVersion.tenant_id == tenant_id,
-            TranscriptVersion.provider != TranscriptProvider.RESTORED,
+            TranscriptVersion.provider.notin_(DERIVED_PROVIDERS),
         )
         .distinct(TranscriptVersion.document_id)
         .order_by(TranscriptVersion.document_id, TranscriptVersion.created_at.desc())

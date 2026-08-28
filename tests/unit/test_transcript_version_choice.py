@@ -33,19 +33,23 @@ def sql(subquery) -> str:
     )
 
 
-class TestIndexVersionsExcludesRestored:
+class TestIndexVersionsExcludesDerived:
     def test_query_filters_on_provider(self):
         assert "provider" in sql(index_versions(TENANT)).lower()
 
-    def test_it_names_restored_specifically(self):
-        assert TranscriptProvider.RESTORED.value in sql(index_versions(TENANT))
+    def test_it_names_the_derived_providers(self):
+        from corpus.db.transcript_versions import DERIVED_PROVIDERS
 
-    def test_it_is_an_exclusion_not_an_inclusion(self):
-        """`!= restored`, not `== raw`. New providers must default to indexable —
-        a future transcript source should not silently vanish from the index because
-        an allowlist was not updated."""
         compiled = sql(index_versions(TENANT))
-        assert "!=" in compiled or "IS NOT" in compiled.upper()
+        for provider in DERIVED_PROVIDERS:
+            assert provider.value in compiled
+
+    def test_it_is_an_exclusion_not_an_allowlist(self):
+        """`NOT IN (derived)`, never `IN (fetched)`. A future transcript source must
+        be indexable by default rather than silently vanishing from the index because
+        nobody updated a list."""
+        compiled = sql(index_versions(TENANT)).upper()
+        assert "NOT IN" in compiled or "!=" in compiled
 
 
 class TestLatestVersionsKeepsRestored:
