@@ -3090,3 +3090,20 @@
   videos_at_survey: 215
   subscribers_at_survey: 210000
   note: "Sex education and coaching fits personal development but narrowly scoped"
+
+# ---------------------------------------------------------------------------
+# Hand-added, outside the generated rounds. Not produced by
+# build_channel_seeds.py and not reachable from a subscription list — added
+# because a specific topic gap was found and named. Keep additions here, below
+# the generated blocks, so re-running the generator never has to reconcile them.
+# ---------------------------------------------------------------------------
+
+- handle: "@JEVanClief"
+  name: "Jake Van Clief"
+  domain: ai_automation
+  authority_tier: practitioner
+  phase: manual
+  videos_at_survey: 76
+  subscribers_at_survey: 61200
+  note: "Interpretable Context Methodology / Model Workspace Protocol (arXiv 2603.16021). Verified with yt-dlp 2026-08-27, channel_id UCPR4DV8qMQVs_YBa-CQZQBQ. Added to close a named coverage gap on multi-user agent context; also authors peer-reviewed work, but the channel itself is practitioner tooling."
+
