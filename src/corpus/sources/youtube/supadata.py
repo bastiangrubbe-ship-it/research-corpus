@@ -241,7 +241,7 @@ class SupadataClient:
         *,
         lang: str = "en",
         poll_interval: float = 1.5,
-        max_wait: float = 300.0,
+        max_wait: float = 1800.0,
     ) -> tuple[dict[str, NormalizedTranscript], dict[str, str], RawResponse]:
         """One batch job for every id in `video_ids`, polled to completion.
 
@@ -299,7 +299,7 @@ class SupadataClient:
         video_ids: list[str],
         *,
         poll_interval: float = 1.5,
-        max_wait: float = 300.0,
+        max_wait: float = 1800.0,
     ) -> tuple[dict[str, NormalizedDocument], dict[str, str], RawResponse]:
         """One batch job for video metadata — the Supadata-only counterpart to
         `fetch_transcripts_batch`, used when yt-dlp is being kept out of the fetch
