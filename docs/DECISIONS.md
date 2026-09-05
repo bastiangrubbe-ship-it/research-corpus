@@ -9,6 +9,54 @@ and dismissed or simply never thought of.
 
 ---
 
+## 2026-09-02 — A failed metadata fetch records *why*, and throttling is not a reason
+
+`flows/backfill_metadata.py` repairs documents ingested with `--metadata-source skip`.
+Its first full run reported **595 documents unrepairable**. Sampling six of them by
+hand, five fetched fine on retry. The run had made ~1,200 sequential yt-dlp calls in 26
+minutes, YouTube began refusing, and the flow caught every `SourceError` and moved on —
+recording transient throttling as permanent absence, in the one field that silently
+excludes a document from every trend line.
+
+**The failure mode is the dangerous kind.** Nothing errored. The count read as a fact
+about the videos when it was a fact about our request rate, and the next run would have
+skipped nothing and throttled itself the same way again.
+
+**Decided.** Three outcomes where there were two:
+
+| outcome | recorded | retried |
+|---|---|---|
+| dated | `published_at` | — |
+| explained (members-only, removed) | `metadata_unavailable_reason` + `metadata_probed_at` | no |
+| throttled | **nothing** | yes — 4 attempts, jittered backoff from 5s |
+
+A throttled request writes nothing on purpose. Writing down a reason we do not know is
+the coalescing mistake `CLAUDE.md` forbids one level up: "recording what is unknown is
+the point, not an oversight to tidy up."
+
+**Schema:** `0013_metadata_reason` adds `metadata_unavailable_reason` and
+`metadata_probed_at`, mirroring the transcript pair from `0011`.
+
+**Rejected — a new enum for metadata reasons.** `TranscriptUnavailableReason` already
+names the same causes, and its docstring already carries the caveat that matters: none
+of them is permanent, `MEMBERS_ONLY` is a credentials gap, pair every value with a probe
+timestamp and re-probe rather than treating it as settled. A parallel enum would have
+duplicated the values and dropped the warning.
+
+**Rejected — deleting or hard-skipping members-only rows.** They are real videos that
+become fetchable with the membership. They are marked and skipped by default, and
+`--reprobe` revisits them deliberately.
+
+**Consequence for the work list.** Documents already explained are excluded, which took
+the queue from 574 to 434. Re-asking YouTube about 140 known members-only videos every
+run is what generated the throttling in the first place.
+
+**Worth checking elsewhere.** Any place the pipeline catches a provider error and writes
+a terminal state has this shape. `probe_missing_transcripts` writing `no_captions` is the
+obvious candidate — it makes the same kind of claim from the same kind of evidence.
+
+---
+
 ## 2026-08-27 — Rejected: prefixing the document title to its summary
 
 Adding Jake Van Clief exposed a retrieval hole. His video "We Built Multiplayer AI, No

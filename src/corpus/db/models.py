@@ -173,6 +173,15 @@ class Document(Base, TenantScoped):
     #: captions can be added later.
     transcript_unavailable_reason: Mapped[str | None] = mapped_column(String(32))
     transcript_probed_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))
+
+    #: Why this document's metadata could not be fetched, established by probing
+    #: (same enum as above — the causes are the same causes). NULL means never
+    #: checked. Without it a throttled request and a members-only video both leave
+    #: `published_at IS NULL` and look identical on the next run, which is how a
+    #: rate-limited backfill once reported 595 documents as unrepairable when most
+    #: fetched fine minutes later (docs/DECISIONS.md, 2026-09-02).
+    metadata_unavailable_reason: Mapped[str | None] = mapped_column(String(32))
+    metadata_probed_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))
 class TranscriptVersion(Base, TenantScoped):
     """One row per (document, provider). A document may have several.
 
