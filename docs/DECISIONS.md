@@ -9,6 +9,57 @@ and dismissed or simply never thought of.
 
 ---
 
+## 2026-09-04 — Entity extraction fails on *quota*, not concurrency
+
+Two runs failed most of their work and I initially blamed concurrency. That was wrong,
+and the wrong version of this entry stood for several hours — recorded here rather than
+quietly deleted, because the reasoning error is the useful part.
+
+**What was observed:**
+
+| concurrency | succeeded | failed |
+|---:|---:|---:|
+| 15 | 1,061 | 2,471 |
+| 5 | 1,362 | 1,203 |
+| 5 (20-doc test) | 20 | 0 |
+| 1 (3-doc test) | 3 | 0 |
+
+Every failure returned `is_error: true` with `duration_api_ms: 0`, `input_tokens: 0` and
+`total_cost_usd: 0` — refused before reaching the model.
+
+**The inference I made, and why it was wrong.** Small runs passed and large runs failed,
+so I concluded the concurrency was too high and set `NIGHTLY_ENTITY_CONCURRENCY=5`. But
+concurrency 5 then failed 1,203 of 2,565 at full scale. The tell was in the *shape*: both
+runs produced a long burst of successes and then a wall of failures. A concurrency limit
+refuses from the first batch. Only exhaustion fails that way — succeed, succeed,
+succeed, then nothing.
+
+**Confirmed:** the owner's Claude subscription usage limit was reached during those runs.
+After it reset, **concurrency 15 completed 20/20 with zero failures** — the exact
+configuration blamed for the fault.
+
+**Decided.** Concurrency stays at the default; the `.env` override is removed.
+`corpus.enrich.entities` shells out to the `claude` CLI on a subscription, so the binding
+resource is quota, and concurrency does not change total consumption — it only changes
+how fast it is spent. Throttling the parallelism to protect a quota is treating a budget
+as if it were a rate.
+
+**The real mitigation is a per-run document cap**, not lower concurrency: `--limit` in
+`scripts/nightly.sh` bounds what one night can consume and leaves headroom for
+interactive use. Not set here, because the right number depends on the plan and on what
+else the owner runs that day.
+
+**Still open, and unaffected by any of the above — a run that fails most of its work
+exits 0.** `done: 1061 succeeded, 2471 failed` returned success. `nightly.sh`'s
+`on_failure` trap never fired, no failure heartbeat was written, and `flows/doctor.py`
+showed only a backlog with no hint anything had broken. This entire fault was invisible
+until a log was read by hand. A failure ratio above some threshold should be fatal, or the
+heartbeat should carry the ratio. It is the third fault this week whose signature was
+"looks exactly like normal slowness" — the others being a chunk backfill hung for 23
+hours and a metadata backfill that recorded throttling as permanent absence.
+
+---
+
 ## 2026-08-29 — The corpus has a backfill problem, not a source problem
 
 Asked to add channels covering people earning $10k+/month from apps, SaaS and boring

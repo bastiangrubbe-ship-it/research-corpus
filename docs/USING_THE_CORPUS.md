@@ -24,26 +24,36 @@ than six months ago"*. Do not ask it *"what is X"*.
 
 ## What is actually in it
 
-As of 2026-08-27 — these numbers grow nightly, so treat them as scale, not truth:
+As of 2026-08-29, mid-expansion — these numbers grow nightly, so treat them as scale,
+not truth:
 
 | | |
 |---|---:|
-| Documents | 3,966 |
-| With transcripts | 3,897 |
-| Sources (channels) | 170 |
-| Distinct entities | 25,166 |
-| Entity mentions | 328,152 |
+| Documents | 6,471 |
+| With transcripts | 6,319 |
+| Sources (channels + feeds) | 388 |
+| Distinct entities | 36,207 |
+| Entity mentions | 460,027 |
+| Transcript chunks | 109,015 |
 | Date range | 2018-12 → 2026-08 |
 
-By domain: `ai_automation` 1,907 · `ai_research` 1,252 · `entrepreneurship` 323 ·
-`general` 278 · `personal_development` 206.
+By domain: `ai_automation` 2,120 · `performance_marketing` 1,473 · `ai_research` 1,322 ·
+`entrepreneurship` 778 · `general` 279 · `personal_development` 260 ·
+`marketing_measurement` 239.
+
+By authority: `practitioner` 3,844 · `established_media` 1,641 · `vendor_official` 890 ·
+`aggregator` 71 · `unknown` 25. **Practitioner content is the majority.** That is a
+strength for "what are people actually doing" and a weakness for anything needing an
+audited number — see the warning about creator claims below.
 
 The subject matter it genuinely covers, measured by how many *independent* sources
-discuss each entity: Google (149), ChatGPT (141), Claude (140), OpenAI (132),
-Anthropic (119), Gemini (113), Claude Code (106), GitHub (105), Microsoft (99).
+discuss each entity: Google (224), Claude (212), ChatGPT (207), YouTube (198), OpenAI
+(172), Instagram (160), Anthropic (156), Gemini (154), Slack (151), Meta (150).
 
-**So: AI tooling, AI research, and the creator/founder economy around them.** It is
-thin on everything else, and empty on most of it.
+**So: AI tooling and AI research; performance marketing and marketing measurement; and
+the creator/founder economy around all of it.** It is thin on everything else, and
+empty on most of it. In particular it holds no regulatory-domain sources at all, despite
+regulatory tracking being one of its stated jobs.
 
 ## The five tools, and when each is right
 
@@ -58,7 +68,7 @@ thin on everything else, and empty on most of it.
 `corpus_analytics` is the underrated one — it answers the comparative and temporal
 questions with no embeddings and no LLM, which is what the corpus exists for.
 
-## Five things that will mislead you if you do not know them
+## Six things that will mislead you if you do not know them
 
 **1. A coverage grade of `none` or `thin` means go elsewhere.** It is a router, not a
 diagnosis. Reporting what little the corpus holds as if it were the picture is the
@@ -78,9 +88,22 @@ much. Ten weak results look identical to ten strong ones. That is what
 broad filter matches hundreds. Always `dry_run: true` first to see the count. A capped
 run reports `capped` and `dropped_by_cap`; a partial read is not a complete answer.
 
-**5. Check `indexed_documents` against `total_documents`.** A partially-built index does
-not look broken, it looks decisive — it returns confident rankings over whatever
-fraction happens to be searchable.
+**5. Check `indexed_documents` against `total_documents` on every answer.** A partially
+built index does not look broken, it looks decisive — it returns confident rankings over
+whatever fraction happens to be searchable. **Right now that gap is real:** the corpus is
+mid-expansion, and as of 2026-08-29 roughly 91% of documents have a summary embedding
+(the only thing the dense lane searches), 92% are chunked, 93% have entity extraction,
+and 67% have speaker attribution. Analytics counts are computed over the extracted
+fraction and will read as the whole picture unless you check. `flows/doctor.py` reports
+all of it.
+
+**6. Revenue and outcome figures in this corpus are claims, not audited results.** The
+practitioner majority is largely creators demonstrating success in order to sell
+something — a course, a community, a white-label tool. Processor screenshots show gross
+volume, never profit and never churn. Price points are reliable evidence of what a
+market has been trained to expect; the outcomes attached to them are marketing. Treat
+"$X/month" as a stated offer, not a measured result, unless a second independent source
+says otherwise.
 
 ## Worked examples
 
