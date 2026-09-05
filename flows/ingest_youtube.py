@@ -56,7 +56,7 @@ import datetime as dt
 import sys
 
 from corpus.ingest.pipelines import IngestEvent
-from corpus.ingest.runner import load_seeds, run_ingestion
+from corpus.ingest.runner import cap_for, load_seeds, run_ingestion
 
 
 def _print_event(event: IngestEvent) -> None:
@@ -141,7 +141,14 @@ def main() -> int:
     print(f"{len(seeds)} channel(s) queued" + (f" (phase={args.phase})" if args.phase else ""))
     if args.dry_run:
         for s in seeds:
-            print(f"  {s['handle']:28} {s['domain']:22} {s.get('videos_at_survey', '?')} videos")
+            # Show what the run would actually fetch, not the survey count: a
+            # capped channel's survey figure overstates the spend by thousands of
+            # credits, and a cost preview that is not the cost is worse than none.
+            cap = cap_for(s)
+            surveyed = s.get("videos_at_survey", "?")
+            shown = min(cap, surveyed) if cap and isinstance(surveyed, int) else (cap or surveyed)
+            capped = " (capped)" if cap and isinstance(surveyed, int) and cap < surveyed else ""
+            print(f"  {s['handle']:28} {s['domain']:22} {shown} videos{capped}")
         return 0
 
     since = None

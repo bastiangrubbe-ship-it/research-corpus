@@ -7,6 +7,7 @@ what "run these seeds" means.
 from __future__ import annotations
 
 import datetime as dt
+import re
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
@@ -43,13 +44,19 @@ def load_seeds(phase: str | None = None, handle: str | None = None) -> list[dict
 
 
 def cap_for(seed: dict) -> int | None:
-    # Two channels are capped in the seed table's note (§seeds/README.md) because a
+    # Some channels are capped in the seed table's note (§seeds/README.md) because a
     # full backfill would be mostly repetition. Parsed here rather than adding a
-    # dedicated column, since exactly two rows need it today.
-    note = seed.get("note", "")
-    if "CAP at" in note:
-        return int(note.split("CAP at")[1].split()[0])
-    return None
+    # dedicated column.
+    #
+    # Matched case-insensitively, and that is the whole point: this was written for
+    # two rows saying "CAP at 400" and every row added since says "cap at 400". A
+    # case-sensitive match silently ignored 15 of the 17 caps -- and a cap that does
+    # not fire costs real money, because the channels carrying one are precisely the
+    # 1,000-2,400 video catalogues the cap exists to avoid paying for. Nothing failed;
+    # the ingest would simply have spent several thousand extra credits
+    # (docs/DECISIONS.md, 2026-08-29).
+    match = re.search(r"cap at\s+(\d+)", seed.get("note", "") or "", re.IGNORECASE)
+    return int(match.group(1)) if match else None
 
 
 def resolve_tenant_id(settings: Settings) -> uuid.UUID:
