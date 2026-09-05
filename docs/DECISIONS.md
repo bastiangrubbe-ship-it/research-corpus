@@ -9,6 +9,53 @@ and dismissed or simply never thought of.
 
 ---
 
+## 2026-08-29 — The corpus has a backfill problem, not a source problem
+
+Asked to add channels covering people earning $10k+/month from apps, SaaS and boring
+businesses. Checked the seed table first and most of them were already there. Checked
+what they actually hold and found the real defect.
+
+**Measured.** 298 of 392 sources hold between 1 and 30 documents. Spot-checking what
+those documents are:
+
+| source | documents | date range |
+|---|---:|---|
+| @AlexHormozi | 22 | 2026-08-28 → 2026-08-29 |
+| @PodcastBigDeal | 21 | 2026-08-26 → 2026-08-26 |
+| @ycombinator | 21 | 2026-07-26 → 2026-08-25 |
+| @GregIsenberg | 21 | 2026-06-13 → 2026-08-26 |
+
+Hormozi's entire presence is two days of uploads. BigDeal's is one day.
+
+**Cause.** `scripts/nightly.sh` runs `ingest_youtube.py --since-days 7` with no
+`--phase`, so every seeded row accrues recent uploads forever while its back catalogue
+is never fetched. Seeding a channel and backfilling it are different operations, and
+only one of them is automated. A channel added today looks ingested within a week and
+holds nothing older than the day it was added.
+
+**Consequence, and why this mattered before anyone noticed.** `corpus_coverage` graded
+"buying an existing business" at 0.33 — effectively empty — while Codie Sanchez, BigDeal
+and the Koerner Office were all seeded. The grade was correct about the evidence and
+badly misleading about the cause: it read as "no sources on this" when the truth was "the
+sources are here and starved". Source count is not coverage, and the scale table in
+`docs/USING_THE_CORPUS.md` reports the former.
+
+**Decided:** backfill the starved sources that are on-topic before adding any new ones.
+~2,900 credits for eight channels, versus ~10,000 for all thirty candidates.
+
+**Rejected — adding the 13 genuinely-absent channels first.** They are real gaps
+(Superwall, Zach Yadegari, Timothy Armoo among them) but a new seed row buys 21 recent
+documents and the same starvation. Fix the mechanism's output before feeding it more.
+
+**Rejected — running whole phases.** `--phase subs5-entrepreneurship` would ingest all
+58 channels in it for ~17,900 credits to obtain the four that were wanted.
+
+**Still open.** `nightly.sh` should backfill a newly-seeded row once before settling into
+forward-fill, or this recurs for every channel ever added. Not fixed here because it
+changes scheduled behaviour and wants its own decision.
+
+---
+
 ## 2026-09-02 — A failed metadata fetch records *why*, and throttling is not a reason
 
 `flows/backfill_metadata.py` repairs documents ingested with `--metadata-source skip`.

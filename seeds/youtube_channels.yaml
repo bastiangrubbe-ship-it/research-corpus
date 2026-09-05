@@ -3107,3 +3107,63 @@
   subscribers_at_survey: 61200
   note: "Interpretable Context Methodology / Model Workspace Protocol (arXiv 2603.16021). Verified with yt-dlp 2026-08-27, channel_id UCPR4DV8qMQVs_YBa-CQZQBQ. Added to close a named coverage gap on multi-user agent context; also authors peer-reviewed work, but the channel itself is practitioner tooling."
 
+# Added 2026-08-29: the "$10k+/month from apps, SaaS and boring businesses" gap.
+# Every handle below resolved live with yt-dlp before being written here.
+# Deliberately excluded: @IndieHackers (13 subscribers — dormant; adding it would
+# inflate a coverage grade without adding evidence). Unresolved and therefore not
+# guessed at: Marc Lou, Think Like an Owner, Walker Deibel.
+
+- handle: "@AcquiringMinds"
+  name: "Acquiring Minds"
+  domain: entrepreneurship
+  authority_tier: practitioner
+  phase: manual
+  videos_at_survey: 420
+  subscribers_at_survey: 16500
+  note: "buying small businesses — long-form interviews with people who actually closed a deal; the counterweight to the agency tier. yt-dlp 2026-08-29, UCxZhukqVghThCjzZuvP7pfA"
+
+- handle: "@sweatystartup"
+  name: "Nick Huber - Sweaty Startup"
+  domain: entrepreneurship
+  authority_tier: practitioner
+  phase: manual
+  videos_at_survey: 777
+  subscribers_at_survey: 35100
+  note: "boring physical-services businesses and real operating economics. yt-dlp 2026-08-29, UCBYwRdRw6x9bH4PsyCLnmOw"
+
+- handle: "@TheBootstrappedFounder"
+  name: "Arvid Kahl - The Bootstrapped Founder"
+  domain: entrepreneurship
+  authority_tier: practitioner
+  phase: manual
+  videos_at_survey: 331
+  subscribers_at_survey: 11900
+  note: "bootstrapped SaaS from an operator who built and sold one; audience-first distribution. yt-dlp 2026-08-29, UCB6s-V1Ls4vc_mXEF-4Lz_Q"
+
+- handle: "@BuiltToSell"
+  name: "Built to Sell"
+  domain: entrepreneurship
+  authority_tier: practitioner
+  phase: manual
+  videos_at_survey: 572
+  subscribers_at_survey: 7400
+  note: "owner-independence and exit mechanics — the one topic the creator tier never covers. yt-dlp 2026-08-29, UCdQqvAMT0hCor-FyIIrPZRg"
+
+- handle: "@MicroConf"
+  name: "MicroConf"
+  domain: entrepreneurship
+  authority_tier: practitioner
+  phase: manual
+  videos_at_survey: 32
+  subscribers_at_survey: 4350
+  note: "bootstrapped B2B SaaS conference talks; small catalogue, high signal density. yt-dlp 2026-08-29, UCroeMSea_O-xfgDvgbJGVQA"
+
+- handle: "@SimonHoiberg"
+  name: "Simon Hoiberg"
+  domain: entrepreneurship
+  authority_tier: practitioner
+  phase: manual
+  videos_at_survey: 60
+  subscribers_at_survey: 264000
+  note: "Danish indie hacker building SaaS in public — the only Nordic voice in this tier. yt-dlp 2026-08-29, UCMo28ATCDU0Kn9dpilAF79Q"
+
